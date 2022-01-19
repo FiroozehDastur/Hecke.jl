@@ -942,7 +942,7 @@ end
 ################################################################################
 
 @doc Markdown.doc"""
-    isinlattice(v::Vector, L::ZLat) -> Bool
+    Base.in(v::Vector, L::ZLat) -> Bool
 
 
   This function checks if the vector 'v' lies in the lattice 'L' or not.

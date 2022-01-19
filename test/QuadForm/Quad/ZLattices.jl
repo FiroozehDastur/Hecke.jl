@@ -387,11 +387,11 @@ end
   B = QQ[2 0 0 0; 1 1 0 0; 1 0 1 0; 1//2 1//4 1//2 1//4]
   L = lattice(V, B)
   x1 = [27//11, 1, 1//7, 2]
-  @test !(x1 in L)
   x2 = [2//1, 14//2, 5//1, 9//3]
-  @test x2 in L
   x3 = [4, 5, 11, 9]
-  @test x3 in L
   x4 = [2, 1, 0, 1, 2]
+  @test !(x1 in L)
+  @test x2 in L
+  @test x3 in L
   @test_throws AssertionError x4 in L
 end
