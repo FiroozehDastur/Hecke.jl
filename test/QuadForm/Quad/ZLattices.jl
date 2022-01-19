@@ -341,10 +341,55 @@ end
   @test ambient_space(N) === ambient_space(L)
   @test rank(N) == 0
   @test basis_matrix(invariant_lattice(L, identity_matrix(QQ, 2))) == basis_matrix(L)
+  
+  randlist = rand(2:20,10)
+  L = [root_lattice(:D,i) for i in randlist]
+  @test any(l -> discriminant(l) == 4, L)
+  @test any(iseven, L)
+  @test any(l -> norm(l) == 2, L)
+
+  L = root_lattice(:D,3)
+  #Problem here: equality of lattices depends on 'strict' equality of their ambient
+  #space, as julia object!
+  @test gram_matrix(L) == gram_matrix(root_lattice(:A,3)) 
+  
+  L = root_lattice(:D,4)
+  @test norm(L) == 2
+  @test automorphism_group_order(L) == 1152
+
+  L = root_lattice(:E,6)
+  @test discriminant(L) == 3
+  @test iseven(L)
+  @test norm(L) == 2
+  @test Hecke.kissing_number(L) == 72
+
+  L = root_lattice(:E,7)
+  @test discriminant(L) == 2
+  @test iseven(L)
+  @test norm(L) == 2
+  @test Hecke.kissing_number(L) == 126
+
+  L = root_lattice(:E, 8)
+  @test discriminant(L) == 1
+  @test iseven(L)
+  @test norm(L) == 2
+  @test norm(L) == 2 # tests caching
 
   q = quadratic_space(QQ, QQ[2 1; 1 2])
   L = lattice(q, QQ[0 0; 0 0], isbasis = false)
   g = automorphism_group_generators(L)
   @test rank(L) == 0
   @test g == [identity_matrix(QQ, 2)]
+
+  # membership check
+  G = QQ[1 0 0 0; 0 2 0 0; 0 0 17 0; 0 0 0 6]
+  V = quadratic_space(QQ, G)
+  B = QQ[2 0 0 0; 1 1 0 0; 1 0 1 0; 1//2 1//4 1//2 1//4]
+  L = lattice(V, B)
+  x1 = [27//11, 1, 1//7, 2]
+  @test x1 in L
+  x2 = [4, 5, 11, 9]
+  @test x2 in L
+  x3 = [2, 1, 0, 1, 2]
+  @test_throws AssertionError x3 in L
 end
