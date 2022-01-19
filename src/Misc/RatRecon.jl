@@ -125,7 +125,7 @@ farey_lift = rational_reconstruction
 # Idea of using the same agorithm due to E. Thome
 #
 
-function berlekamp_massey_recon(a::Array{T, 1}; ErrorTolerant::Bool = false, parent = PolynomialRing(parent(a[1]), "x", cached = false)[1]) where T
+function berlekamp_massey_recon(a::Vector{T}; ErrorTolerant::Bool = false, parent = PolynomialRing(parent(a[1]), "x", cached = false)[1]) where T
   Rx = parent
   f = Rx(a)
   x = gen(Rx)
@@ -134,7 +134,7 @@ function berlekamp_massey_recon(a::Array{T, 1}; ErrorTolerant::Bool = false, par
   fl, n, d = rational_reconstruction(f, xn, ErrorTolerant = ErrorTolerant)
   if fl
     d = reverse(d)
-    return true, d*(inv(lead(d)))
+    return true, d*(inv(leading_coefficient(d)))
   else
     return false, Rx(0)
   end
@@ -160,8 +160,8 @@ function rational_reconstruction_subres(g::PolyElem{T}, f::PolyElem{T}, bnd::Int
         return true, g, r_1
     end
 
-    N1 = R_2(inv(lead(g))); r2 = g*N1
-    r1 = f* R_2(inv(lead(f))); t1 = t_1;
+    N1 = R_2(inv(leading_coefficient(g))); r2 = g*N1
+    r1 = f* R_2(inv(leading_coefficient(f))); t1 = t_1;
     t2 = N1; i = 0
     l_rt = []
     deg_f = degree(f)
@@ -171,7 +171,7 @@ function rational_reconstruction_subres(g::PolyElem{T}, f::PolyElem{T}, bnd::Int
         if r==0
            N1 = R_2(1)
         else
-           N1 = R_2(inv(lead(r)))
+           N1 = R_2(inv(leading_coefficient(r)))
         end
         r2=r*N1; r1=r3
         r3=t2; t2=(t1-q1*t2)*N1; t1=r3
@@ -199,7 +199,7 @@ function rational_reconstruction_subres(g::PolyElem{T}, f::PolyElem{T}, bnd::Int
        elseif !isone(g)
           return false, l_rt[1], l_rt[2]
        else
-          return  true, l_rt[1], l_rt[2] 
+          return  true, l_rt[1], l_rt[2]
        end
     else
         g = gcd(r_m, t_m)
@@ -233,8 +233,8 @@ function rational_reconstruction_mod(g::fmpq_poly, f::fmpq_poly, bnd::Int = -1; 
       rethrow(e)
     end
   end
-                                       # bound n and a starting p 
-  kp = 10  
+                                       # bound n and a starting p
+  kp = 10
   L =[]
   pp = FlintZZ(1)
   j = 0
@@ -279,8 +279,8 @@ function _modp_results(g::fmpq_poly,f::fmpq_poly, p::fmpz, M::Int, n::Int, Error
      gp = Rp(g)
      fp = Rp(f)
      fl, nu_p, de_p = rational_reconstruction_subres(gp, fp, -1, ErrorTolerant = ErrorTolerant)
-     if fl 
-        ut = Rp(inv(lead(de_p)))
+     if fl
+        ut = Rp(inv(leading_coefficient(de_p)))
         push!(l1, ut*nu_p)
         push!(l2, ut*de_p)
         push!(l3, L[j])
@@ -314,10 +314,10 @@ end
 
 ###############################################################################
 
-function berlekamp_massey(L::Array{T, 1}; parent = PolynomialRing(parent(L[1]), "x", cached = false)[1]) where T
+function berlekamp_massey(L::Vector{T}; parent = PolynomialRing(parent(L[1]), "x", cached = false)[1]) where T
   return berlekamp_massey_naive(L, parent = parent)
 end
-function berlekamp_massey(L::Array{fmpq, 1}; ErrorTolerant::Bool = false, parent = Globals.Qx)
+function berlekamp_massey(L::Vector{fmpq}; ErrorTolerant::Bool = false, parent = Globals.Qx)
   if ErrorTolerant
     return berlekamp_massey_recon(L, ErrorTolerant = true, parent = parent)
   end
@@ -327,7 +327,7 @@ end
 ################################################################################
 #                         Berlekamp Massey Algorithm                           #
 ################################################################################
-function berlekamp_massey_naive(L::Array{T, 1}; parent = PolynomialRing(parent(L[1]), "x", cached = false)[1]) where T
+function berlekamp_massey_naive(L::Vector{T}; parent = PolynomialRing(parent(L[1]), "x", cached = false)[1]) where T
      R_s = Nemo.parent(L[1])
      lg = length(L)
      L = [R_s(L[lg-i]) for i in 0:lg-1]
@@ -338,26 +338,26 @@ function berlekamp_massey_naive(L::Array{T, 1}; parent = PolynomialRing(parent(L
        return true, g
      end
      f = Y^lg
-     N = R_s(inv(lead(g))); g1 = g*N
+     N = R_s(inv(leading_coefficient(g))); g1 = g*N
      v0 = Ry(); v1 = Ry(1)
      while lg <= 2*degree(g1)
        q,r = divrem(f,g1)
        if r==0
           N = R_s(1)
        else
-          N = R_s(inv(lead(r)))
+          N = R_s(inv(leading_coefficient(r)))
        end
        v = (v0-q*v1)*N
        v0 = v1; v1 = v; f = g1; g1= r*N
      end
-     return true, divexact(v1, lead(v1))
+     return true, divexact(v1, leading_coefficient(v1))
 end
 
 ###############################################################################
 #                 modular Berlekamp algorithm                                 #
 ###############################################################################
 
-function berlekamp_massey_mod(L::Array{fmpq, 1}; parent = Globals.Qx)
+function berlekamp_massey_mod(L::Vector{fmpq}; parent = Globals.Qx)
   Rf = Nemo.parent(L[1])
 #  L = [Rf(L[i]) for i in 1:length(L)]
   Rc = parent
@@ -428,12 +428,12 @@ function testPrime_jl(f::fmpq_poly, p::fmpz)
     # BAD!!! missing: num_coeff(f, i)
     nd = denominator(f)
     fg = nd*f
-    return !(divides(nd, p)[1]) || !(divides(numerator(lead(fg)), p)[1])
+    return !(divides(nd, p)[1]) || !(divides(numerator(leading_coefficient(fg)), p)[1])
 end
 
 ################################################################################
 
-function listprimes(f::Array{fmpq_poly, 1}, p::fmpz, M::Int)
+function listprimes(f::Vector{fmpq_poly}, p::fmpz, M::Int)
    # static
    i=0; L = fmpz[]
    while true
@@ -450,7 +450,7 @@ end
 
 ################################################################################
 
-function induce_crt(L::Array{gfp_poly, 1}, c::crt_env{fmpz}; parent=Globals.Zx)
+function induce_crt(L::Vector{gfp_poly}, c::crt_env{fmpz}; parent=Globals.Zx)
   res = parent()
   m = maximum(degree(x) for x = L)
 

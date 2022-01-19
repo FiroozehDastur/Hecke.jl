@@ -17,14 +17,14 @@ function ispower(f::PolyElem{T}, n::Int) where {T <: FieldElem}
   inv_n = inv(base_ring(f)(n))
   d = divexact(degree(f), n)+1
   r = parent(f)(lc)
-  b = powmod(f, n-1, gen(parent(f))^d)
+  b = powermod(f, n-1, gen(parent(f))^d)
   p = 1
   while p < d
-    r = r*(1+inv_n)-b*inv_n*powmod(r, n+1, gen(parent(f))^d)
+    r = r*(1+inv_n)-b*inv_n*powermod(r, n+1, gen(parent(f))^d)
     p *= 2
   end
   r = (f*r) % gen(parent(f))^d
-  #this is the ONLY possible candidate 
+  #this is the ONLY possible candidate
   #(think about n-th roots of 1 - maybe only other roots lift?)
   #NO: this is a purely transcendental extension, roots of unity are in
   #base_ring or don't come in.

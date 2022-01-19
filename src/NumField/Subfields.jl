@@ -127,7 +127,7 @@ end
 #As above, but for AnticNumberField type
 #In this case, we can use block system to find if an element is primitive.
 function _subfield_primitive_element_from_basis(K::AnticNumberField, as::Vector{nf_elem})
-  if isempty(as)
+  if isempty(as) || degree(K) == 1
     return gen(K)
   end
 
@@ -278,16 +278,16 @@ function fixed_field(K::SimpleNumField, sigma::T; simplify::Bool = true) where {
   return fixed_field(K, T[sigma], simplify = simplify)
 end
 
-@doc Markdown.doc"""
-    fixed_field(K::SimpleNumField, A::Vector{NfToNfMor}) -> NumberField, NfToNfMor
-
-Given a number field $K$ and a set $A$ of automorphisms of $K$, this function
-returns the fixed field of $A$ as a pair $(L, i)$ consisting of a number field
-$L$ and an embedding of $L$ into $K$.
-
-By default, the function tries to find a small defining polynomial of $L$. This
-can be disabled by setting `simplify = false`.
-"""
+#@doc Markdown.doc"""
+#    fixed_field(K::SimpleNumField, A::Vector{NfToNfMor}) -> NumberField, NfToNfMor
+#
+#Given a number field $K$ and a set $A$ of automorphisms of $K$, this function
+#returns the fixed field of $A$ as a pair $(L, i)$ consisting of a number field
+#$L$ and an embedding of $L$ into $K$.
+#
+#By default, the function tries to find a small defining polynomial of $L$. This
+#can be disabled by setting `simplify = false`.
+#"""
 function fixed_field(K::AnticNumberField, A::Vector{NfToNfMor}; simplify::Bool = true)
 
   autos = small_generating_set(A)
@@ -295,7 +295,7 @@ function fixed_field(K::AnticNumberField, A::Vector{NfToNfMor}; simplify::Bool =
     return K, id_hom(K)
   end
 
-  if ismaximal_order_known(K) 
+  if ismaximal_order_known(K)
     OK = maximal_order(K)
     if isdefined(OK, :lllO)
       k, mk = fixed_field1(K, A)
@@ -332,7 +332,7 @@ function fixed_field(K::AnticNumberField, A::Vector{NfToNfMor}; simplify::Bool =
       m[j, j] = m[j, j] - bm.den # This is autos[i] - identity
     end
 
-		
+
     push!(ar_mat, m)
   end
 
@@ -370,7 +370,7 @@ function fixed_field(K::NfRel, A::Vector{T}; simplify::Bool = true) where {T <: 
   if length(autos) == 0
     return K, id_hom(K)
   end
-	
+
   F = base_field(K)
   a = gen(K)
   n = degree(K)
@@ -497,7 +497,7 @@ function fixed_field(K::AnticNumberField, auts::Vector{NfToNfMor}, ::Type{NfRel{
   all_auts = closure(auts, div(degree(K), degree(F)))
   Kx, x = PolynomialRing(K, "x", cached = false)
   p = prod(x-image_primitive_element(y) for y in all_auts)
-  def_eq = map_coeffs(x -> haspreimage(mF, x)[2], p)
+  def_eq = map_coefficients(x -> haspreimage(mF, x)[2], p)
   L, gL = number_field(def_eq, cached = false, check = false)
   iso = hom(K, L, gL, image_primitive_element(mF), gen(K))
   #I also set the automorphisms...

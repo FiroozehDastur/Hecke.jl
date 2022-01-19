@@ -1,8 +1,5 @@
 function number_field_over_subfield(C::ClassField_pp; using_norm_relation::Bool = true, using_stark_units::Bool = false)
   K = base_field(C)
-  if degree(K) == 1
-    return ray_class_field_cyclic_pp(C)
-  end
   subs = principal_subfields(K)
   subs = [x for x in subs if degree(x[1]) != degree(K)]
   if isempty(subs)
@@ -32,7 +29,6 @@ function number_field_over_subfield(C::ClassField_pp; using_norm_relation::Bool 
 end
 
 
-
 function translate_extension(mL::NfToNfMor, C::ClassField_pp)
   L = domain(mL)
   OL = maximal_order(L)
@@ -49,7 +45,7 @@ function translate_extension(mL::NfToNfMor, C::ClassField_pp)
   for (p, v) in fM0
     p1 = Hecke.intersect_prime(mL, p)
     if !haskey(fm0, p1)
-      if iscoprime(minimum(p1, copy = false), n) 
+      if iscoprime(minimum(p1, copy = false), n)
         fm0[p1] = 1
       else
         fm0[p1] = v
@@ -61,14 +57,14 @@ function translate_extension(mL::NfToNfMor, C::ClassField_pp)
   #Now, I have problems, so I need to add the ramification of the other extension.
   for (p, v) in f
     if !haskey(fm0, p)
-      if isone(gcd(minimum(p), n)) 
+      if isone(gcd(minimum(p), n))
         fm0[p] = 1
       else
         fm0[p] = v
       end
     else
-      if !isone(gcd(minimum(p), n)) 
-        fm0[p] = max(v, fm0[p]) 
+      if !isone(gcd(minimum(p), n))
+        fm0[p] = max(v, fm0[p])
       end
     end
     lPP = prime_decomposition(mL, p)
@@ -81,7 +77,7 @@ function translate_extension(mL::NfToNfMor, C::ClassField_pp)
     end
   end
   infplc = InfPlc[]
-  if iszero(mod(n, 2)) 
+  if iszero(mod(n, 2))
     infplc = real_places(L)
   end
   @vprint :ClassField 3 "Checking if I can compute the field over a subfield\n"
@@ -91,7 +87,7 @@ function translate_extension(mL::NfToNfMor, C::ClassField_pp)
   end
   #Now, the norm group of K over L
   @vtime :ClassField 3 ngL, mngL = Hecke.norm_group(mL, mr)
-  @hassert :ClassField 1 divisible(divexact(fmpz(degree(codomain(mL))), degree(domain(mL))), divexact(order(r), order(ngL))) 
+  @hassert :ClassField 1 divisible(divexact(fmpz(degree(codomain(mL))), degree(domain(mL))), divexact(order(r), order(ngL)))
   if !divisible(order(ngL), degree(C)) || !divisible(exponent(C), n)
     return false, C
   end
@@ -105,7 +101,7 @@ function translate_extension(mL::NfToNfMor, C::ClassField_pp)
         fM0[p] = max(v, fM0[p])
       else
         fM0[p] = v
-      end 
+      end
     end
   end
   inf_plc2 = InfPlc[]
@@ -131,7 +127,7 @@ function translate_extension(mL::NfToNfMor, C::ClassField_pp)
   @hassert :ClassField 1 isisomorphic(cokernel(mk, false)[1], codomain(C.quotientmap))
   mp = mk*proj
   ck, mck = cokernel(mp, false)
-  #If everything could work, then ck should be the direct product of the abelian extension I am searching for and 
+  #If everything could work, then ck should be the direct product of the abelian extension I am searching for and
   #the maximal abelian subextension of K/L
   G1 = snf(cokernel(mngL, false)[1])[1]
   G2 = snf(codomain(C.quotientmap))[1]
@@ -142,7 +138,7 @@ function translate_extension(mL::NfToNfMor, C::ClassField_pp)
   fl, ms1 = has_complement(ms)
   @assert fl
   mq1 = cokernel(ms1, false)[2]
-  mqq = mck * mq1 
+  mqq = mck * mq1
   @hassert :ClassField 1 domain(mqq) == r
   C1 = ClassField_pp{MapRayClassGrp, GrpAbFinGenMap}()
   C1.quotientmap = mqq
@@ -160,12 +156,12 @@ function translate_up(mL::NfToNfMor, C::ClassField_pp, C1::ClassField_pp)
   CEL = cyclotomic_extension(L, d)
   img = gen(CEK.Kr)
   if degree(CEK.Kr) != euler_phi(d)
-    pp = map_coeffs(mL, CEL.Kr.pol, cached = false)
+    pp = map_coefficients(mL, CEL.Kr.pol, cached = false)
     while !iszero(pp(img))
       mul!(img, img, gen(CEK.Kr))
     end
   end
-  mrel = hom(CEL.Kr, CEK.Kr, mL, img) 
+  mrel = hom(CEL.Kr, CEK.Kr, mL, img)
   #@hassert :Fields 1 isconsistent(mrel)
   g = mrel(CEL.mp[1](gen(CEL.Ka)))
   mp = hom(CEL.Ka, CEK.Ka, CEK.mp[1]\(g), check = false)
@@ -183,13 +179,13 @@ function translate_up(mL::NfToNfMor, C::ClassField_pp, C1::ClassField_pp)
   coeffs[end] = one(Lzeta)
   C.K = number_field(Lt(coeffs), cached = false, check = false)[1]
   #The target extension
-  fdef = map_coeffs(mL, C1.A.pol, parent = Ky, cached = false)
+  fdef = map_coefficients(mL, C1.A.pol, parent = Ky, cached = false)
   C.A = number_field(fdef, cached = false, check = false)[1]
   #Now, the primitive element of the target extension seen in Cpp.K
   mrel2 = hom(C1.K, C.K, mp, gen(C.K))
-  C.pe = mrel2(C1.pe) 
+  C.pe = mrel2(C1.pe)
   CEKK = cyclotomic_extension(K, d)
-  @hassert :ClassField 1 iszero(map_coeffs(CEKK.mp[2], fdef, cached = false)(C.pe))
+  @hassert :ClassField 1 iszero(map_coefficients(CEKK.mp[2], fdef, cached = false)(C.pe))
   C.o = d1
   return nothing
 end

@@ -548,7 +548,7 @@ function *(a::AlgAssRelOrdIdl{S, T, U}, b::AlgAssRelOrdIdl{S, T, U}) where {S, T
   pba = pseudo_basis(a, copy = false)
   pbb = pseudo_basis(b, copy = false)
   M = zero_matrix(base_ring(A), d2, d)
-  C = Array{fractional_ideal_type(order_type(base_ring(A))), 1}(undef, d2)
+  C = Vector{fractional_ideal_type(order_type(base_ring(A)))}(undef, d2)
   t = one(A)
   for i = 1:d
     i1d = (i - 1)*d
@@ -727,7 +727,7 @@ function in(x::AbsAlgAssElem{S}, a::AlgAssRelOrdIdl{S, T, U}) where { S, T, U }
   parent(x) !== algebra(a) && error("Algebra of element and ideal must be equal")
   A = algebra(a)
   b_pmat = basis_pmatrix(a, copy = false)
-  t = matrix(base_ring(A), 1, dim(A), coeffs(x, copy = false))
+  t = matrix(base_ring(A), 1, dim(A), coefficients(x, copy = false))
   t = t*basis_mat_inv(a, copy = false)
   for i = 1:dim(A)
     if !(t[1, i] in b_pmat.coeffs[i])
@@ -1296,7 +1296,7 @@ function maximal_integral_ideal(O::AlgAssRelOrd, p::Union{ NfAbsOrdIdl, NfRelOrd
 
   # P is the Jacobson radical of O/pO, so O/P is a simple algebra
   B, OtoB = quo(O, P, p)
-  C, BtoC, CtoB = _as_algebra_over_center(B)
+  C, CtoB = _as_algebra_over_center(B)
   D, CtoD = _as_matrix_algebra(C)
 
   n = degree(D)
@@ -1432,11 +1432,13 @@ end
 # factor.
 # Always considers I as an ideal of its left order.
 function factor(I::AlgAssRelOrdIdl)
+  @assert !iszero(I)
   O = left_order(I)
   @assert ismaximal(O)
+  I != 1*O || error("I must be proper")
 
   factors = Vector{ideal_type(O)}()
-  n = normred(J, O)
+  n = normred(I, O)
   fac_n = factor(n)
   primes = collect(keys(fac_n))
   sort!(primes, lt = (p, q) -> minimum(p, copy = false) < minimum(q, copy = false))
@@ -1448,7 +1450,7 @@ function factor(I::AlgAssRelOrdIdl)
       I = divexact_left(I, M)
     end
   end
-  push!(factors, J)
+  push!(factors, I)
 
   return factors
 end

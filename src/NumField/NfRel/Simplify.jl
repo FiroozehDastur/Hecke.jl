@@ -102,7 +102,7 @@ function _find_prime(L::NfRel{nf_elem})
     P = lp[1][1]
     F, mF = ResidueField(OK, P)
     mF1 = extend(mF, K)
-    fF = map_coeffs(mF1, f)
+    fF = map_coefficients(mF1, f)
     if degree(fF) != degree(f) || !issquarefree(fF)
       continue
     end
@@ -113,7 +113,7 @@ function _find_prime(L::NfRel{nf_elem})
       Q = lp[j][1]
       F2, mF2 = ResidueField(OK, Q)
       mF3 = extend(mF2, K)
-      fF2 = map_coeffs(mF3, f)
+      fF2 = map_coefficients(mF3, f)
       if degree(fF2) != degree(f) || !issquarefree(fF2)
         acceptable = false
         break
@@ -127,7 +127,7 @@ function _find_prime(L::NfRel{nf_elem})
       i += 1
     end
   end
-  
+
   res = candidates[1]
   for j = 2:n_attempts
     if candidates[j][2] < res[2]
@@ -198,9 +198,10 @@ function _find_prime(L::NfRelNS{nf_elem})
     @assert !isindex_divisor(OL, P)
     F, mF = ResidueField(OK, P)
     mF1 = extend(mF, K)
+    Fx, _ = PolynomialRing(F, "x", cached = false)
     is_proj = true
     for j = 1:length(pols)
-      fF = isunivariate(map_coeffs(mF1, pols[j]))[2]
+      fF = to_univariate(Fx, map_coefficients(mF1, pols[j]))
       if degree(fF) != total_degree(pols[j]) || !issquarefree(fF)
         is_proj = false
         break
@@ -216,7 +217,36 @@ function _find_prime(L::NfRelNS{nf_elem})
       d1 = lcm(Int[x for (x, v) in FS])
       d = lcm(d, d1)
     end
-    if d < threshold
+    acceptable = true
+    for s = 2:length(lp)
+      Q = lp[s][1]
+      @assert !isindex_divisor(OL, Q)
+      F, mF = ResidueField(OK, Q)
+      Fx, _ = PolynomialRing(F, "x", cached = false)
+      mF1 = extend(mF, K)
+      is_proj = true
+      for j = 1:length(pols)
+        fF = to_univariate(Fx, map_coefficients(mF1, pols[j]))
+        if degree(fF) != total_degree(pols[j]) || !issquarefree(fF)
+          is_proj = false
+          break
+        end
+        polsR[j] = fF
+      end
+      if !is_proj
+        acceptable = false
+        break
+      end
+      for j = 1:length(polsR)
+        FS = factor_shape(polsR[j])
+        d1 = lcm(Int[x for (x, v) in FS])*degree(Q)
+        d = lcm(d, d1)
+      end
+    end
+    if !acceptable
+      continue
+    end
+    if d*degree(P) < threshold
       candidates[i] = (P, d)
       i += 1
     end
@@ -250,10 +280,11 @@ function _setup_block_system(Lrel::NfRelNS{nf_elem})
   rt = Dict{fq, Vector{Vector{fq}}}()
   Rxy = PolynomialRing(F, ngens(Lrel), cached = false)[1]
   tmp = Fpx()
+  Kx, _ = PolynomialRing(K, "x", cached = false)
   for r in rt_base_field
     vr = Vector{Vector{fq}}()
     for f in Lrel.pol
-      g = isunivariate(f)[2]
+      g = to_univariate(Kx, f)
       coeff_gF = fq[]
       for i = 0:degree(g)
         nf_elem_to_gfp_fmpz_poly!(tmp, coeff(g, i))
@@ -282,13 +313,15 @@ function _setup_block_system(Lrel::NfRelNS{nf_elem})
       break
     end
   end
+  @assert ind > nconjs_needed
   return rt1, Rxy, tmp
 end
 
 function _sieve_primitive_elements(B::Vector{T}; parameter::Int = div(absolute_degree(parent(B[1])), 2)) where T <: Union{NfRelNSElem{nf_elem}, NfRelElem{nf_elem}}
   Lrel = parent(B[1])
   #First, we choose the candidates
-  B_test = vcat(B, T[absolute_primitive_element(Lrel)])
+  ape = absolute_primitive_element(Lrel)
+  B_test = vcat(B, T[ape])
   Bnew = typeof(B)()
   nrep = min(parameter, absolute_degree(Lrel))
   for i = 1:length(B_test)
@@ -320,7 +353,7 @@ function _is_primitive_via_block(a::NfRelNSElem{nf_elem}, rt::Dict{fq, Vector{Ve
   conjs = Set{fq}()
   for (r, vr) in rt
     ctx = MPolyBuildCtx(Rxy)
-    for (c, v) in zip(coeffs(pol), exponent_vectors(pol))
+    for (c, v) in zip(coefficients(pol), exponent_vectors(pol))
       nf_elem_to_gfp_fmpz_poly!(tmp, c)
       push_term!(ctx, evaluate(tmp, r), v)
     end

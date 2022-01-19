@@ -261,7 +261,7 @@ function  _locally_isometric_sublattice_even_ramified(M, L, p, P, absolute_map)
       KM = map_entries(x -> E(h\x), _KM)
       _new_pmat = _sum_modules(pseudo_matrix(KM * BBM), pM)
       LL = lattice(ambient_space(M), _new_pmat)
-      
+
       if islocally_isometric(X, LL, p)
         break
       end
@@ -273,21 +273,21 @@ end
 @doc Markdown.doc"""
     locally_isometric_sublattice(M::HermLat, L::HermLat, p) -> HermLat
 
-Given rationally equivalent lattices $M$ and $L$ and a prime $p$, find a
+Given rationally isometric lattices $M$ and $L$ and a prime $p$, find a
 sublattice $N$ of $M$ with $N_q = M_q$ for $q \neq p$ and $N_p$ isometric to
 $L_p$.
 """
 function locally_isometric_sublattice(M::HermLat, L::HermLat, p)
   EE = nf(base_ring(M))
   @assert base_ring(M) == base_ring(L)
-  @assert isrationally_equivalent(M, L, p)
+  @assert isrationally_isometric(M, L, p)
   @assert ismaximal_integral(M, p)[1]
   D = prime_decomposition(base_ring(L), p)
 
   absolute_map = absolute_simple_field(ambient_space(M))[2]
 
   P = D[1][1]
-  
+
   if length(D) == 2 # split case
     LL = _locally_isometric_sublattice_split(M, L, p, P, absolute_map)
   elseif length(D) == 1 && D[1][2] == 1 # inert case

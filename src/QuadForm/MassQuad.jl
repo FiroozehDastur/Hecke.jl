@@ -72,10 +72,10 @@ function _local_factor_unimodular(L::QuadLat, p)
     c = quadratic_defect(disc, p)
     if d == 2
       if a < b && b == 2 && c == 2 * e
-        @assert e - a - 1 > 0
+        @assert e - a - 1 >= 0
         lf = fmpq(q^div(e - a - 1, 2) * (q - _get_eps(c)))
       elseif b == e && a + e + 1 <= c && c < 2 * e
-        @assert c - e - a > 0
+        @assert c - e - a >= 0
         lf = fmpq(2 * q^div(c - e - a, 2))
       else
         lf = fmpq(1)
@@ -321,15 +321,15 @@ function local_factor(L::QuadLat, p)
     if ramification_index(p) == 1
       return _local_factor_cho(L, p)
     elseif ismaximal(L, p)[1]
-      ss = uniformizer(p)^(-valuation(norm(L), p))
+      ss = elem_in_nf(uniformizer(p))^(-valuation(norm(L), p))
       return _local_factor_maximal(rescale(L, ss), p)
     elseif ismodular(L, p)[1]
-      ss = uniformizer(p)^(-valuation(scale(L), p))
+      ss = elem_in_nf(uniformizer(p))^(-valuation(scale(L), p))
       return _local_factor_unimodular(rescale(L, ss), p)
     else
       a = _isdefinite(rational_span(L))
       def = !iszero(a)
-      ss = uniformizer(p)^(-valuation(norm(L), p))
+      ss = elem_in_nf(uniformizer(p))^(-valuation(norm(L), p))
       if def
         R = base_ring(L)
         rlp = real_places(K)
@@ -708,7 +708,7 @@ function _L_function_at_1(E, prec)
   K = base_field(E)
   Eabs, EabsToE = absolute_simple_field(E)
   @assert istotally_complex(E)
-  Eabs, simp = simplify(Eabs)
+  Eabs, simp = simplify(Eabs, cached = false)
   d = divexact(discriminant(maximal_order(Eabs)),
                discriminant(maximal_order(K)))
 
@@ -823,13 +823,13 @@ function _dedekind_zeta_attwell_duval_positive(K::AnticNumberField, s, prec::Int
 
   #@show inv(_b)
 
-  _T = upper_bound(root(inv(_b), s - 1), fmpz)
+  _T = upper_bound(fmpz, root(inv(_b), s - 1))
 
   _Tint = Int(_T)
 
   b = local_cor * zeta(RR(s))^d * (RR(d) + 1)//(RR(s - 1))//(RR(2))^(-(prec + 1))
   bb = root(b, s - 1)
-  T = upper_bound(bb, fmpz)
+  T = upper_bound(fmpz, bb)
   # z_K(s) - truncated at T < 1/2^(prec + 1)
   @assert fits(Int, T)
   Tint = Int(T)
@@ -1043,6 +1043,8 @@ end
 # Bounds for the orders of the finite subgroups of G(k)
 # It is also in Feit:
 # Finite linear groups and .. Minkowski ... Schur
+#
+# See also http://oeis.org/A053657
 
 # https://mathoverflow.net/questions/15127/the-maximum-order-of-finite-subgroups-in-gln-q?noredirect=1&lq=1
 #
@@ -1061,18 +1063,16 @@ end
 #
 #𝑛=10,𝑊(𝐸8)×𝑊(𝐺2), order 8360755200 (reducible).
 
-function _multiple_of_finite_group_order_glnz(n::Int)
-  return _minkowski_multiple(n)
-end
 
 function _minkowski_multiple(n)
   if n == 1
-    return fmpz(1)
+    return fmpz(2)
   elseif n == 2
     return fmpz(24)
   elseif n == 3
     return fmpz(48)
   else
+    bernoulli_cache(n)
     if isodd(n)
       return 2 * _minkowski_multiple(n - 1)
     else
@@ -1132,6 +1132,10 @@ function _minkowski_multiple(K, n)
   end
   return cand
 end
+
+# Also allow QQ, to allow for more uniform code calling _minkowski_multiple
+_minkowski_multiple(K::FlintRationalField, n) = _minkowski_multiple(n)
+
 
 ################################################################################
 #
@@ -1208,7 +1212,7 @@ function _modulus_of_kronecker_as_dirichlet(D)
   return abs(fundamental_discriminant(D))
 end
 
-function _bernoulli_kronecker(z::Union{fmpz, Integer}, D)
+function _bernoulli_kronecker(z::IntegerUnion, D)
   return _bernoulli_kronecker(Int(z), D)
 end
 

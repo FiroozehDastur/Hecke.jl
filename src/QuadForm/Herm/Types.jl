@@ -1,5 +1,5 @@
 # Hermitian lattices
-mutable struct HermLat{S, T, U, V, W} <: AbsLat{S}
+@attributes mutable struct HermLat{S, T, U, V, W} <: AbsLat{S}
   space::HermSpace{S, T, U, W}
   pmat::V
   gram::U
@@ -12,7 +12,6 @@ mutable struct HermLat{S, T, U, V, W} <: AbsLat{S}
   minimal_generators
   norm
   scale
-  @declare_other
 
   function HermLat{S, T, U, V, W}() where {S, T, U, V, W}
     z = new{S, T, U, V, W}()
@@ -31,7 +30,7 @@ mutable struct HermLat{S, T, U, V, W} <: AbsLat{S}
 
     K = base_field(E)
 
-    space = HermSpace(E, G)
+    space = hermitian_space(E, G)
 
     z = new{S, typeof(K), U, V, typeof(involution)}(space, P)
     z.base_algebra = E

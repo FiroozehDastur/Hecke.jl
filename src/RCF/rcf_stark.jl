@@ -11,7 +11,7 @@ end
 #
 ################################################################################
 
-function Base.show(io::IO, C::RCFCharacter) 
+function Base.show(io::IO, C::RCFCharacter)
   println(IOContext(io, :compact => true), "Character of $(C.C)")
 end
 
@@ -64,7 +64,7 @@ function image(chi::RCFCharacter{MapClassGrp, T}, I::NfOrdIdl, prec::Int) where 
   if iszero(img)
     return one(CC)
   end
-  return exppii(2*CC(img))
+  return cispi(2*CC(img))
 end
 
 function image(chi::RCFCharacter{MapRayClassGrp, T}, I::NfOrdIdl, prec::Int) where T
@@ -94,7 +94,7 @@ function image(chi::RCFCharacter{MapRayClassGrp, T}, I::NfOrdIdl, prec::Int) whe
     if iszero(img)
       return one(CC)
     end
-    return exppii(2*CC(img))
+    return cispi(2*CC(img))
   end
   assure_with_conductor(chi)
   if !iscoprime(I, conductor(chi))
@@ -119,7 +119,7 @@ function image(chi::RCFCharacter{MapRayClassGrp, T}, I::NfOrdIdl, prec::Int) whe
   if iszero(img)
     return one(CC)
   end
-  return exppii(2*CC(img))
+  return cispi(2*CC(img))
 end
 
 function image(chi::RCFCharacter, x::GrpAbFinGenElem, prec::Int)
@@ -129,7 +129,7 @@ function image(chi::RCFCharacter, x::GrpAbFinGenElem, prec::Int)
   if iszero(img)
     return one(CC)
   end
-  return exppii(CC(2*img))
+  return cispi(CC(2*img))
 end
 
 
@@ -242,7 +242,7 @@ function approximate_defpoly(K::AnticNumberField, el::Vector{acb})
   l2norm = fmpz(0)
   for i = 0:degree(pol)
     c = coeff(pol, i)
-    l2norm += upper_bound(abs(c)^2, fmpz)
+    l2norm += upper_bound(fmpz, abs(c)^2)
   end
   return true, nbits(l2norm)
 end
@@ -270,9 +270,9 @@ function _find_coeffs(K, pol, v)
   coeffs = Vector{nf_elem}(undef, degree(pol)+1)
   for i = 1:degree(pol)
     c = coeff(pol, i-1)
-    bn = 3*nbits(Hecke.upper_bound(c, fmpz))
+    bn = 3*nbits(Hecke.upper_bound(fmpz, c))
     fl, comb = _approximate(c, bconjs, bn)
-    if !fl 
+    if !fl
       add = 10
       while !fl && add < 100
         fl, comb = _approximate(c, bconjs, bn)
@@ -286,7 +286,7 @@ function _find_coeffs(K, pol, v)
   return Kt(coeffs)
 end
 
-function _approximate(el::arb, A::Array{arb, 1}, bits::Int)
+function _approximate(el::arb, A::Vector{arb}, bits::Int)
   n = length(A)
   V0 = floor(ldexp(el, bits) + 0.5)
   V = [floor(ldexp(s, bits) + 0.5) for s in A]
@@ -328,7 +328,7 @@ function _find_suitable_quadratic_extension(C::T) where T <: ClassField_pp
   ctx = rayclassgrp_ctx(OK, Int(exponent(C))*2)
   allow_cache!(ctx.class_group_map)
   lc = ideals_up_to(OK, bound, conductor(C)[1])
-  cnt = 0 
+  cnt = 0
   while true
     @vprint :ClassField 1 "Batch of ideals with $(length(lc)) elements \n"
     for I in lc
@@ -481,7 +481,7 @@ function _approximate_derivative_Artin_L_function(chars::Vector, target_prec::In
   prec = min(10, div(degree(chars[1].C), 2))*target_prec
   RR = ArbField(prec)
   maxC = (root(norm(conductor(chars[1].C)[1])*abs(discriminant(maximal_order(K))), 2)+1)//(sqrt(const_pi(RR))^degree(K))
-  nterms = Int(Hecke.upper_bound(target_prec*maxC//2, fmpz))
+  nterms = Int(Hecke.upper_bound(fmpz, target_prec*maxC//2))
   i0 = _find_i0(K, target_prec)
   Acoeffs = _compute_A_coeffs(n, i0, prec)
   factorials = Vector{fmpz}(undef, n)
@@ -528,7 +528,7 @@ function compute_values_f_quadratic(chars::Vector, target_prec::Int)
       continue
     end
     cx = _C(x, prec)
-    nterms = Int(Hecke.upper_bound((target_prec*cx)//2, fmpz))
+    nterms = Int(Hecke.upper_bound(fmpz, (target_prec*cx)//2))
     v = Vector{Tuple{arb, arb}}(undef, nterms)
     v0 = _evaluate_f_x_0(cx, prec, 2*target_prec, nterms)
     for i = 1:length(v)
@@ -695,7 +695,7 @@ function artin_root_number(chi::RCFCharacter, prec::Int)
     el = reps[i].elem_in_nf*u.elem_in_nf//lambda.elem_in_nf
     trel = 2*tr(el)
     newtrel = fmpq(mod(numerator(trel), 2*denominator(trel)), denominator(trel))
-    expi = exppii(R(newtrel))
+    expi = cispi(R(newtrel))
     Gsum += chi(ideal(OK, reps[i]), prec) * expi
   end
   Gsum = mul!(Gsum, Gsum, chi(h, prec))
@@ -743,7 +743,7 @@ end
 function _evaluate_f_x_0(x::arb, prec::Int)
   RR = parent(x)
   CC = AcbField(precision(RR))
-  return 2*sqrt(const_pi(RR))*real(expint(one(CC), CC(2//x)))
+  return 2*sqrt(const_pi(RR))*real(exp_integral_e(one(CC), CC(2//x)))
 end
 
 function _evaluate_f_x_0(x::arb, prec::Int, tolerance::Int, N::Int)
@@ -751,8 +751,8 @@ function _evaluate_f_x_0(x::arb, prec::Int, tolerance::Int, N::Int)
   RR = ArbField(prec)
   res = Vector{arb}(undef, N)
   A = 2//x
-  res[N] = real(expint(one(CC), CC(N*A)))
-  nstop = Int(upper_bound(ceil(4//A), fmpz))
+  res[N] = real(exp_integral_e(one(CC), CC(N*A)))
+  nstop = Int(upper_bound(fmpz, ceil(4//A)))
   n = N
   e0 = exp(A)
   e1 = exp(-N*A)
@@ -778,7 +778,7 @@ function _evaluate_f_x_0(x::arb, prec::Int, tolerance::Int, N::Int)
     e1 = e0*e1
   end
   for i = 1:nstop
-    res[i] = real(expint(one(CC), CC(2*i//x)))
+    res[i] = real(exp_integral_e(one(CC), CC(2*i//x)))
   end
   cc = 2*sqrt(const_pi(RR))
   for i = 1:N
@@ -804,7 +804,7 @@ function _lambda_and_artin(chi::RCFCharacter, target_prec::Int, coeffs_0, coeffs
   res2 = zero(CC)
   cchi = _C(chi, prec)
   n = degree(K)
-  nterms_chi = Int(Hecke.upper_bound(target_prec*cchi//2, fmpz))
+  nterms_chi = Int(Hecke.upper_bound(fmpz, target_prec*cchi//2))
   res1 = zero(CC)
   res2 = zero(CC)
   aux = CC()
@@ -828,7 +828,7 @@ function _C(chi::RCFCharacter, prec::Int)
   OK = order(c)
   nc = norm(c)
   p = const_pi(RR)^degree(OK)
-  d = sqrt(RR(abs(discriminant(OK))))*sqrt(RR(nc)) 
+  d = sqrt(RR(abs(discriminant(OK))))*sqrt(RR(nc))
   return d//sqrt(p)
 end
 
@@ -977,11 +977,11 @@ function _compute_A_coeffs(n::Int, nterms::Int, prec::Int)
       res = Vector{arb}(undef, n+1)
       q = divexact(i-1, 2)
       r0 = spi*_coeff_0_odd(n, q)
-      vg = coeffs_exp_odd[q+1] 
+      vg = coeffs_exp_odd[q+1]
       res[n+1] = zero(RR)
       for j = 1:n
         mul!(vg[n-j+1], vg[n-j+1], r0)
-        res[j] = vg[n-j+1] 
+        res[j] = vg[n-j+1]
       end
     end
     res_final[i+1] = res

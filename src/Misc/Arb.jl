@@ -58,12 +58,12 @@ end
 # 3 = ARF_RND_CEIL = round towards +infinity
 
 @doc Markdown.doc"""
-    abs_upper_bound(x::arb, ::Type{fmpz}) -> fmpz
+    abs_upper_bound(::Type{fmpz}, x::arb) -> fmpz
 
 Returns a positive integer $b$ of type `fmpz` such that $\lvert x \rvert \leq
 b$. It is not guaranteed that $b$ is as tight as possible.
 """
-function abs_upper_bound(x::arb, ::Type{fmpz})
+function abs_upper_bound(::Type{fmpz}, x::arb)
   tarf = arf_struct(0, 0, 0, 0)
 
   ccall((:arf_init, libarb), Nothing, (Ref{arf_struct}, ), tarf)
@@ -85,12 +85,12 @@ function abs_upper_bound(x::arb, ::Type{fmpz})
 end
 
 @doc Markdown.doc"""
-    abs_upper_bound(x::arb, ::Type{Float64}) -> Float64
+    abs_upper_bound(::Type{Float64}, x::Float64) -> Float64
 
 Returns a positive double $b$ such that $\lvert x \rvert \leq b$. It is not
 guaranteed that $b$ is as tight as possible.
 """
-function abs_upper_bound(x::arb, ::Type{Float64})
+function abs_upper_bound(::Type{Float64}, x::arb)
   tarf = arf_struct(0, 0, 0, 0)
 
   ccall((:arf_init, libarb), Nothing, (Ref{arf_struct}, ), tarf)
@@ -108,12 +108,12 @@ function abs_upper_bound(x::arb, ::Type{Float64})
 end
 
 @doc Markdown.doc"""
-    upper_bound(x::arb, ::Type{fmpz}) -> fmpz
+    upper_bound(::Type{fmpz}, x::arb) -> fmpz
 
 Returns an integer $b$ of type `fmpz` such that $x \leq
 b$. It is not guaranteed that $b$ is as tight as possible.
 """
-function upper_bound(x::arb, ::Type{fmpz})
+function upper_bound(::Type{fmpz}, x::arb)
   tarf = arf_struct(0, 0, 0, 0)
 
   ccall((:arf_init, libarb), Nothing, (Ref{arf_struct}, ), tarf)
@@ -153,4 +153,28 @@ function lower_bound(x::arb, ::Type{fmpz})
   ccall((:arf_clear, libarb), Nothing, (Ref{arf_struct}, ), tarf)
 
   return bound
+end
+
+################################################################################
+#
+#  Signs for arb and acb
+#
+################################################################################
+
+function sign(::Type{Int}, x::arb)
+  if ispositive(x)
+    return 1
+  elseif isnegative(x)
+    return -1
+  else
+    error("Could not determine sign")
+  end
+end
+
+function sign(::Type{Int}, x::acb)
+  if isreal(x)
+    return sign(Int, real(x))
+  else
+    error("Element is not real")
+  end
 end

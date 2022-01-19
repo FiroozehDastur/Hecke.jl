@@ -5,7 +5,7 @@ using SparseArrays
   M = SMatSpace(R, 3, 3)
 
   @test R == @inferred base_ring(M)
-  
+
   A = identity_matrix(FlintZZ, 3)
   Asparse = sparse_matrix(A)
 
@@ -122,7 +122,7 @@ using SparseArrays
   D = sparse_matrix(FlintZZ, [1 5 3; 0 0 0; 0 1 0])
   Dt = @inferred transpose(D)
   @test Dt == sparse_matrix(FlintZZ, [1 0 0; 5 0 1; 3 0 0])
-  @test Dt == D'
+  @test Dt == transpose(D)
 
   # Iterator interface
 
@@ -145,7 +145,7 @@ using SparseArrays
   v = fmpz[1 1 1; 1 2 3; 0 0 4; 0 0 0]
   w = @inferred mul(D, view(v, 2:4, :))
   @test w == fmpz[1 2 23; 0 0 0; 0 0 4]
-  
+
   v = matrix(FlintZZ, fmpz[1 2 3; 0 0 4; 0 0 0])
   w = @inferred mul(D, v)
   @test w == matrix(FlintZZ, fmpz[1 2 23; 0 0 0; 0 0 4])

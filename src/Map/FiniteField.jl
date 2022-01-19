@@ -14,7 +14,7 @@ function prime_field(F::T; cached::Bool = true) where T <: Union{GaloisField, Ga
   return F
 end
 
-function Nemo.hom(F::FinField, K::FinField, a::FinFieldElem; check::Bool = true)
+function hom(F::FinField, K::FinField, a::FinFieldElem; check::Bool = true)
   @assert parent(a) == K
 
   if check
@@ -36,7 +36,7 @@ function Nemo.hom(F::FinField, K::FinField, a::FinFieldElem; check::Bool = true)
       M[i, j] = coeff(el, j-1)
     end
   end
-  
+
   aux = zero_matrix(Kp, 1, degree(F))
   aux1 = zero_matrix(Kp, 1, degree(K))
   function img(x::FinFieldElem)
@@ -47,7 +47,7 @@ function Nemo.hom(F::FinField, K::FinField, a::FinFieldElem; check::Bool = true)
     mul!(aux1, aux, M)
     pol = Kpx(elem_type(Kp)[aux1[1, j] for j = 1:degree(K)])
     return K(pol)
-  end 
+  end
 
 
   function preimg(x::FinFieldElem)
@@ -112,10 +112,10 @@ function minpoly(a::FinFieldElem, mp::Nemo.FinFieldMorphism)
   end
   t = PolynomialRing(codomain(mp), "x", cached = false)[2]
   pol = prod(t-x for x in conjs)
-  return map_coeffs(preimage_map(mp), pol)
+  return map_coefficients(preimage_map(mp), pol)
 end
 
-function Nemo.generator_minimal_polynomial(mp::Nemo.FinFieldMorphism{FqFiniteField, FqFiniteField})
+function Nemo.generator_minimum_polynomial(mp::Nemo.FinFieldMorphism{FqFiniteField, FqFiniteField})
   return minpoly(gen(codomain(mp)), mp)
 end
 

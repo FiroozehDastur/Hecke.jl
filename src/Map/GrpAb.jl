@@ -86,6 +86,7 @@ mutable struct GrpAbFinGenMap <: Map{GrpAbFinGen, GrpAbFinGen,
 end
 
 function image(f::Map(GrpAbFinGenMap), a::GrpAbFinGenElem)
+  parent(a) == domain(f) || error("not in the domain")
   if !isdefined(f, :map)
     return hasimage(f, a)[2]
   end
@@ -95,6 +96,7 @@ end
 function image(phi::GrpAbFinGenMap, U::GrpAbFinGen, add_to_lattice::Bool = !false)
   G = domain(phi)
   fl, inj = issubgroup(U, G)
+  fl || error("subgroup is not in the domain")
   return sub(codomain(phi), [phi(inj(U[i])) for i=1:ngens(U)], add_to_lattice)
 end
 
@@ -113,12 +115,11 @@ end
 #
 ################################################################################
 
-mutable struct FiniteFieldMultGrpMap{S, T} <: Map{GrpAbFinGen, S, HeckeMap, FiniteFieldMultGrpMap{S, T}}
+@attributes mutable struct FiniteFieldMultGrpMap{S, T} <: Map{GrpAbFinGen, S, HeckeMap, FiniteFieldMultGrpMap{S, T}}
   header::MapHeader{GrpAbFinGen, S}
   domain::GrpAbFinGen
   codomain::S
   generator::T
-  @declare_other
 
   function FiniteFieldMultGrpMap{S, T}(G::GrpAbFinGen, F::S, generator::T, disc_log::Function) where {S, T}
     z = new{S, T}()
@@ -135,25 +136,28 @@ function image(f::FiniteFieldMultGrpMap, x::GrpAbFinGenElem)
   return f.generator^x[1]
 end
 
-
-
-
-
 ################################################################################
 #
 #  Morphisms from finite abelian groups onto units of orders
 #
 ################################################################################
 
-mutable struct AbToNfOrdMultGrp <: Map{GrpAbFinGen, NfOrd, SetMap, AbToNfOrdMultGrp}
+@attributes mutable struct AbToNfOrdMultGrp{S, T} <: Map{GrpAbFinGen, S, SetMap, AbToNfOrdMultGrp}
   domain::GrpAbFinGen
-  codomain::NfOrd
-  generator::NfOrdElem
-  @declare_other
+  codomain::S
+  generator::T
 
-  function AbToNfOrdMultGrp(O::NfOrd, order::Int, generator::NfOrdElem)
+  function AbToNfOrdMultGrp(O::NfAbsOrd, order::Int, generator::NfAbsOrdElem)
     G = abelian_group([order])
-    z = new()
+    z = new{typeof(O), typeof(generator)}()
+    z.domain = G
+    z.codomain = O
+    z.generator = generator
+    return z
+  end
+  function AbToNfOrdMultGrp(O::NfRelOrd, order::Int, generator::NfRelOrdElem)
+    G = abelian_group([order])
+    z = new{typeof(O), typeof(generator)}()
     z.domain = G
     z.codomain = O
     z.generator = generator
@@ -165,15 +169,14 @@ function (f::AbToNfOrdMultGrp)(a::GrpAbFinGenElem)
   return f.generator^a[1]
 end
 
-mutable struct AbToNfMultGrp <: Map{GrpAbFinGen, AnticNumberField, SetMap, AbToNfMultGrp}
+@attributes mutable struct AbToNfMultGrp{S, T} <: Map{GrpAbFinGen, S, SetMap, AbToNfMultGrp}
   domain::GrpAbFinGen
-  codomain::AnticNumberField
-  generator::nf_elem
-  @declare_other
+  codomain::S
+  generator::T
 
-  function AbToNfMultGrp(K::AnticNumberField, order::Int, generator::nf_elem)
+  function AbToNfMultGrp(K::NumField, order::Int, generator::NumFieldElem)
     G = abelian_group(Int[order])
-    z = new()
+    z = new{typeof(K), typeof(generator)}()
     z.domain = G
     z.codomain = K
     z.generator = generator
@@ -200,7 +203,7 @@ mutable struct GrpAbFinGenToAbsOrdMap{S, T} <: Map{GrpAbFinGen, S, HeckeMap, Grp
   generators::Vector{T}
   discrete_logarithm::Function
   modulus # this can be anything, for which powermod(::T, ::fmpz, modulus) is defined
-  
+
   disc_log::GrpAbFinGenElem #Needed in the conductor computation
 
   function GrpAbFinGenToAbsOrdMap{S, T}(G::GrpAbFinGen, O::S, generators::Vector{T}, disc_log::Function, modulus...) where {S, T}
@@ -287,7 +290,7 @@ mutable struct GrpAbFinGenToAbsOrdQuoRingMultMap{S, T, U} <: Map{GrpAbFinGen, Ab
   # Multiplicative group, wild part
   wild::Dict{T, GrpAbFinGenToAbsOrdMap{S, U}}
 
-  
+
 
   function GrpAbFinGenToAbsOrdQuoRingMultMap{S, T, U}(G::GrpAbFinGen, Q::AbsOrdQuoRing{S, T}, generators::Vector{AbsOrdQuoRingElem{S, T, U}}, disc_log::Function) where {S, T, U}
     @assert ngens(G) == length(generators)

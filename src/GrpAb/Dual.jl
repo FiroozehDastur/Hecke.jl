@@ -57,6 +57,8 @@ function show(io::IO, G::QmodnZ)
   end
 end
 
+modulus(T::QmodnZ) = T.n
+
 struct QmodnZElem <: GrpAbElem
   elt::fmpq
   parent::QmodnZ
@@ -73,7 +75,16 @@ struct QmodnZElem <: GrpAbElem
 end
 
 function show(io::IO, a::QmodnZElem)
-  print(io, "$(a.elt) + Z")
+  G = parent(a)
+  if G.trivialmodulus
+    print(io, "$(a.elt) + Z")
+  else
+    if isone(G.d)
+      print(io, "$(a.elt) + ", G.n, "Z")
+    else
+      print(io, "$(a.elt) + (", G.n, "/", G.d, ")Z")
+    end
+  end
 end
 
 function +(a::QmodnZElem, b::QmodnZElem)
@@ -131,7 +142,7 @@ function Base.:(==)(a::QmodnZElem, b::QmodnZElem)
   else
     z = a.elt - b.elt
     d = denominator(z)
-    return isone(d) && iszero(mod(numerator(z), parent(a).modulus))
+    return isone(d) && iszero(mod(numerator(z), modulus(parent(a))))
   end
 end
 
@@ -147,7 +158,7 @@ lift(a::QmodnZElem) = a.elt
 mutable struct GrpAbFinGenToQmodnZ <: Map{GrpAbFinGen, QmodnZ,
                                             HeckeMap, GrpAbFinGenToQmodnZ}
   header::MapHeader{GrpAbFinGen, QmodnZ}
-  
+
   function GrpAbFinGenToQmodnZ(G::GrpAbFinGen, QZ::QmodnZ, image)
     z = new()
     z.header = MapHeader(G, QZ, image)
@@ -189,18 +200,25 @@ end
 
 function dual(G::GrpAbFinGen, u::QmodnZElem)
   o = order(u)
-  H = GrpAbFinGen(fmpz[o])
+  H = abelian_group(fmpz[o])
   QZ = parent(u)
   R, phi = hom(G, H)
-  ex = MapFromFunc(x -> x[1]*u, y -> H([numerator(y.elt) * div(o, denominator(y.elt))]), H, parent(u))
-  function mu(r::GrpAbFinGenElem)
-    f = phi(r)
-    return GrpAbFinGenToQmodnZ(G, QZ, x -> f(x)[1]*u)
+  R::GrpAbFinGen
+  ex = MapFromFunc(x -> x[1]*u, y -> H(fmpz[numerator(y.elt) * div(o, denominator(y.elt))]), H, parent(u))
+  local mu
+  let phi = phi, G = G, QZ = QZ, u = u
+    function mu(r::GrpAbFinGenElem)
+      f = phi(r)
+      return GrpAbFinGenToQmodnZ(G, QZ, x -> f(x)[1]*u)
+    end
   end
 
-  function nu(f::Map)
-    g = GrpAbFinGenMap(f*inv(ex))
-    return preimage(phi, g)
+  local nu
+  let ex = ex, phi = phi
+    function nu(f::Map)
+      g = GrpAbFinGenMap(f*inv(ex))
+      return preimage(phi, g)
+    end
   end
   return R, MapFromFunc(mu, nu, R, MapParent(R, parent(u), "homomorphisms"))
 end

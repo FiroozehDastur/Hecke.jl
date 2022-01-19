@@ -198,7 +198,7 @@ end
 Returns `true` if $D$ is the discriminant of an integral binary quadratic form,
 otherwise returns `false`.
 """
-function isdiscriminant(D::Union{Integer, fmpz})
+function isdiscriminant(D::IntegerUnion)
   if D == 0
     return false
   end
@@ -214,7 +214,7 @@ end
 
 Returns `true` if $D$ is a fundamental discriminant otherwise returns `false`.
 """
-function isfundamental_discriminant(D::Union{Integer, fmpz})
+function isfundamental_discriminant(D::IntegerUnion)
   m = mod(D, 4)
   if m == 1 && issquarefree(D)
     return true
@@ -234,13 +234,13 @@ end
 Returns the conductor of the discriminant $D$, that is, the largest
 positive integer $c$ such that $\frac{D}{c^2}$ is a discriminant.
 """
-function conductor(D::Union{Integer, fmpz})
+function conductor(D::IntegerUnion)
   @req isdiscriminant(D) "Value ($D) not a discriminant"
   d = divexact(D, fundamental_discriminant(D))
   return isqrt(d)
 end
 
-function fundamental_discriminant(D::Union{Integer, fmpz})
+function fundamental_discriminant(D::IntegerUnion)
   fac = factor(D)
   sqf = one(FlintZZ)
   for (p, e) in fac
@@ -422,6 +422,8 @@ end
 #
 ################################################################################
 
+isisometric(f::QuadBin{fmpz}, g::QuadBin{fmpz}) = isequivalent(f, g, proper=false)
+
 @doc Markdown.doc"""
     isequivalent(f::QuadBin{fmpz}, g::QuadBin{fmpz}; proper::Bool = false)
 
@@ -465,7 +467,7 @@ function isequivalent(f::QuadBin{fmpz}, g::QuadBin{fmpz}; proper::Bool = true)
     if proper || is_prop
       return is_prop
     end
-    
+
     # note that our definition of improper equivalence
     # differs from that of Buchmann and Vollmer
     # their action is det f * q(f(x,y))
@@ -495,7 +497,7 @@ function isequivalent(f::QuadBin{fmpz}, g::QuadBin{fmpz}; proper::Bool = true)
       f1 = reduction(binary_quadratic_form(f[3], f[2], f[1]))
       return f1 == gred
     end
-    
+
     return false
   end
 end
@@ -505,7 +507,7 @@ function _isequivalent_reducible(f::QuadBin{fmpz}, g::QuadBin{fmpz}; proper = tr
     return false
   end
 
-  c = content(f) 
+  c = content(f)
   if content(g) != c
     return false
   end
@@ -661,12 +663,14 @@ function _reduction_reducible(f::QuadBin)
   T = T * TT
   # Now g = [g[1], N, 0]
   @assert abs(g[2]) == N
+  # Now [Lem, 3.31]
   if g[2] < 0
+    a = g.a
     aa = invmod(g[1], N)
-    t = divexact(a * aa' - 1)
+    t = divexact(g[1] * aa - 1, N)
     # a * aa - N * t == 1
     @assert a * aa - N * t == 1
-    TT = matrix(FlintZZ, 2, 2, [aa, -N, -t, a])
+    TT = inv(matrix(FlintZZ, 2, 2, [a, -N, -t, aa]))
     g = Hecke._action(g, TT)
     T = T * TT
   end
@@ -682,7 +686,8 @@ function _reduction_reducible(f::QuadBin)
   TT = matrix(FlintZZ, 2, 2, [1, 0, -_t, 1])
   g = Hecke._action(g, TT)
   T = T * TT
-  @assert 1 <= g[1] < N && g[2] == N && iszero(g[3])
+  # @assert 0 <= g[1] < N && g[2] == N && iszero(g[3])
+  @assert isreduced(g)
   @assert det(T) == 1
   @assert g == Hecke._action(f, T)
   return g, T
@@ -729,7 +734,7 @@ If `f` is negative definite (`D < 0` and `a < 0`), then `f` is reduced if and
 only if `[-a, b, -c]` is reduced.
 
 If `f` is indefinite (`D > 0), then `f` is reduced if and only if
-`|sqrt{D} - 2|a|| < b < \sqrt{D}|` or `a = 0` and `-b < 2c <= b` or `c = 0` and
+`|sqrt{D} - 2|a|| < b < \sqrt{D}` or `a = 0` and `-b < 2c <= b` or `c = 0` and
 `-b < 2a <= b`.
 """
 function isreduced(f::QuadBin{fmpz})
@@ -867,3 +872,37 @@ function _tau(f::QuadBin{fmpz})
   @assert _buchmann_vollmer_action(f, T) == g
   return g, T
 end
+
+################################################################################
+#
+#  Representatives
+#
+################################################################################
+
+function binary_quadratic_form_representatives(d::fmpz; proper = true, primitive = false)
+  d4 = mod(d, 4)
+  if d4 == 2 || d4 == 3
+    error("Not a discriminant")
+  end
+  if d > 0
+    # indefinite
+    return _equivalence_classes_binary_quadratic_indefinite(d, proper = proper,
+                                                            primitive = primitive)
+  else
+    throw(NotImplemented())
+  end
+end
+
+################################################################################
+#
+#  Genus
+#
+################################################################################
+
+function islocally_equivalent(f::QuadBin{fmpz}, g::QuadBin{fmpz})
+  K, = rationals_as_number_field()
+  L = _binary_quadratic_form_to_lattice(f, K)
+  M = _binary_quadratic_form_to_lattice(g, K)
+  return genus(L) == genus(M)
+end
+

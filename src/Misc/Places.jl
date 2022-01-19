@@ -48,20 +48,10 @@ end
 #
 ################################################################################
 
-@doc Markdown.doc"""
-    isreal(P::InfPlc) -> Bool
-
-Returns whether the embedding into $\mathbf{C}$ defined by $P$ is real or not.
-"""
 function Base.isreal(P::InfPlc)
   return P.isreal
 end
 
-@doc Markdown.doc"""
-    iscomplex(P::InfPlc) -> Bool
-
-Returns whether the embedding into $\mathbf{C}$ defined by $P$ is complex or not.
-"""
 function iscomplex(P::InfPlc)
   return !isreal(P)
 end
@@ -83,14 +73,15 @@ function infinite_place(K::AnticNumberField, i::Int)
   return InfPlc(K, i)
 end
 
-@doc Markdown.doc"""
-    infinite_places(K::AnticNumberField) -> Vector{InfPlc}
-
-This function returns all infinite places of $K$.
-"""
 function infinite_places(K::AnticNumberField)
+  _res = get_attribute(K, :infinite_places)
+  if _res !== nothing
+    return _res::Vector{InfPlc}
+  end
   r1, r2 = signature(K)
-  return [ InfPlc(K, i) for i in 1:(r1 + r2)]
+  plcs = InfPlc[ InfPlc(K, i) for i in 1:(r1 + r2)]
+  set_attribute!(K, :infinite_places => plcs)
+  return plcs
 end
 
 @doc Markdown.doc"""
@@ -150,6 +141,9 @@ the sign is positive and $-1$ if the sign is negative.
 """
 function sign(a::Union{nf_elem, FacElem{nf_elem, AnticNumberField}}, P::InfPlc)
   !isreal(P) && error("Place must be real")
+  if a isa nf_elem && iszero(a)
+    return 0
+  end
   return signs(a, [P])[P]
 end
 
@@ -162,7 +156,7 @@ keys are the elements of $l$. The value is $1$ if the sign is positive and
 $-1$ if the sign is negative. The result will contain as many signs as there
 are real places contained in $l$.
 """
-function signs(a::Union{nf_elem, FacElem{nf_elem, AnticNumberField}}, l::Array{InfPlc, 1})
+function signs(a::Union{nf_elem, FacElem{nf_elem, AnticNumberField}}, l::Vector{InfPlc})
   K = _base_ring(a)
   r1, r2 = signature(K)
   D = Dict{InfPlc, Int}()
@@ -223,7 +217,7 @@ end
 Returns whether the element $a$ is positive at the embeddings corresponding to
 the real places of $l$.
 """
-function ispositive(a::Union{nf_elem, FacElem{nf_elem, AnticNumberField}}, l::Array{InfPlc, 1})
+function ispositive(a::Union{nf_elem, FacElem{nf_elem, AnticNumberField}}, l::Vector{InfPlc})
   return all(x -> ispositive(a, x), (y for y in l if isreal(y)))
 end
 
@@ -248,6 +242,8 @@ end
 function istotally_positive(a::NfOrdElem, args...)
   return istotally_positive(a.elem_in_nf, args...)
 end
+
+istotally_positive(x::fmpq) = x > 0
 
 ################################################################################
 #
@@ -314,20 +310,17 @@ A uniformizer of a real place $P$ is an element of the field which is negative
 at $P$ and positive at all the other real places.
 """
 function infinite_places_uniformizers(K::AnticNumberField)
-  try
-    c = _get_places_uniformizers(K)::Dict{InfPlc, nf_elem}
-    return c
-  catch e
-    if !isa(e, AccessorNotSetError)
-      rethrow(e)
-    end
-  end
-
   r, s = signature(K)
   if iszero(r)
     return Dict{InfPlc, nf_elem}()
   end
 
+  return get_attribute!(K, :infinite_places_uniformizers) do
+    return _infinite_places_uniformizers(K)
+  end::Dict{InfPlc, nf_elem}
+end
+
+function _infinite_places_uniformizers(K::AnticNumberField)
   p = real_places(K) #Important: I assume these are ordered as the roots of the defining polynomial!
   S = abelian_group(Int[2 for i = 1:length(p)])
 
@@ -492,7 +485,6 @@ function infinite_places_uniformizers(K::AnticNumberField)
     @hassert :NfOrd 1 sign(r[i], p[i]) == -1
     #@hassert :NfOrd 1 all(x -> isone(x), values(signs(r[i], [P for P in p if P != p[i]])))
   end
-  _set_places_uniformizers(K, D)
   return D
 end
 

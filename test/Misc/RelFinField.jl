@@ -10,7 +10,7 @@
     bK = @inferred base_field(K)
     @test bK == F
     o = @inferred order(K)
-    @test o == 27^2 
+    @test o == 27^2
     @test absolute_degree(K) == 6
   end
 
@@ -45,7 +45,7 @@
     @test gL^3 == gL*gL*gL
     @test gL^5 == 2*(gL^4+gL^2+1)
     @test isone(-gL^5-gL^4-gL^2)
-  end 
+  end
 
   @testset "Norm, Trace, Minpoly" begin
     F, gF = FiniteField(3, 3, cached = false)
@@ -58,16 +58,23 @@
     el1 = @inferred absolute_tr(gL)
     @test iszero(el1)
     @test isone(-tr(gL))
-    @test isone(norm(gL))
+    @test isone(-norm(gL))
     f = @inferred Hecke.absolute_minpoly(gL)
     Fx = parent(f)
     x = gen(Fx)
-    @test f == x^5+x^4+x^2+1 
+    @test f == x^5+x^4+x^2+1
     g = @inferred minpoly(gL+1)
     @test iszero(g(gL+1))
     Rx = parent(g)
     y = gen(Rx)
-    @test g(y+1) == y^5+y^4+y^2+1 
+    @test g(y+1) == y^5+y^4+y^2+1
+
+    f, o = FiniteField(7, 2, "o");
+    fx, x = f["x"];
+    F, u = FiniteField(x^3 + o + 4, "u");
+    c = 3*u + 5*o + 1;
+    @test norm(c) == 2*o
+    @test Hecke.norm_via_powering(c) == 2*o
   end
 
   @testset "Absolute basis and coordinates" begin
@@ -97,5 +104,13 @@
     L, gL = FiniteField(t^5+t^4+t^2+1, "b")
     Ly, y = L["y"]
     @test isirreducible(y^13+2*y+1)
+  end
+
+  @testset "Random" begin
+    F, gF = FiniteField(3, 3, cached = false)
+    x = PolynomialRing(F, "x", cached = false)[2]
+    K, gK = FiniteField(x^2+1, "a")
+    a = @inferred rand(K)
+    @test parent(a) === K
   end
 end

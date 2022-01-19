@@ -14,10 +14,10 @@ function diagonal_form(A::SMat{fmpz})
   s = 0
   while !isdiagonal(A)
     s += 1
-    A = hnf(A')
+    A = hnf(transpose(A))
   end
   if isodd(s)
-    return A'
+    return transpose(A)
   else
     return A
   end
@@ -72,7 +72,7 @@ function snf(A::SMat{fmpz})
 end
 
 @doc Markdown.doc"""
-    elementary_divisors(A::SMat{fmpz}) -> Array{fmpz, 1}
+    elementary_divisors(A::SMat{fmpz}) -> Vector{fmpz}
 
 The elementary divisors of $A$, i.e. the diagonal elements of the Smith normal
 form of $A$.

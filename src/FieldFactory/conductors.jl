@@ -41,7 +41,7 @@ function must_be_ramified(L::GAP.GapObj, i::Int)
     S = GAP.Globals.Representative(lS[i])
     if !GAP.Globals.IsCyclic(S) || isone(GAP.Globals.Size(S))
       continue
-    end 
+    end
     g = GAP.Globals.MinimalGeneratingSet(S)[1]
     n = GAP.Globals.Order(g)
     preimgs = GAP.Globals.List(GAP.Globals.PreImages(mH1, g))
@@ -61,7 +61,7 @@ function must_be_ramified(L::GAP.GapObj, i::Int)
       break
     end
   end
-  return found_all, found_one  
+  return found_all, found_one
 end
 
 ################################################################################
@@ -70,7 +70,7 @@ end
 #
 ################################################################################
 
-function _conductors_using_cocycles(F::FieldsTower, st::Vector{Int}, l_cond::Vector, E)
+function _conductors_using_cocycles(F::FieldsTower, st::Vector{Int}, l_cond::Vector)
   lp = ramified_primes(F)
   auts = automorphisms(F.field, copy = false)
   projections = F.projections_for_conductors
@@ -79,89 +79,118 @@ function _conductors_using_cocycles(F::FieldsTower, st::Vector{Int}, l_cond::Vec
   D = F.isomorphism
   n = prod(st)
   O = maximal_order(F)
+  inertia_subgroups = Dict{fmpz, Vector{NfToNfMor}}()
   for p in lp
     lP = prime_decomposition(O, p)
     Hp = inertia_subgroup(lP[1][1])
     gHp = small_generating_set(Hp)
-    els = [D[g] for g in gHp]
-    sub = GAP.Globals.Subgroup(G, GAP.julia_to_gap(els))
-    ord = GAP.Globals.Size(sub)
-    sizes_preimages = Int[]
-    for proj in projections
-      subgs = Vector{Vector{GAP.GapObj}}(undef, n)
-      for i = 1:n
-        subgs[i] = Vector{GAP.GapObj}(undef, length(els))
-      end
+    inertia_subgroups[p] = gHp
+  end
+  must_ramify = Vector{Vector{fmpz}}(undef, length(projections))
+  cant_ramify = Vector{Vector{fmpz}}(undef, length(projections))
+  for s = 1:length(projections)
+    proj = projections[s]
+    ramify_here = Vector{fmpz}()
+    not_ramify_here = Vector{fmpz}()
+    for p in lp
+      gHp = inertia_subgroups[p]
+      els = [D[g] for g in gHp]
+      sub = GAP.Globals.Subgroup(G, GAP.julia_to_gap(els))
+      ord = GAP.Globals.Size(sub)
+      subgs = Vector{GAP.GapObj}()
+      preimages = Vector{Vector{GAP.GapObj}}(undef, length(els))
       for j = 1:length(els)
-        pels = GAP.Globals.List(GAP.Globals.PreImages(proj, els[j]))
-        for i = 1:length(pels)
-          subgs[i][j] = pels[i]
+        preimages[j] = Vector{GAP.GapObj}(GAP.Globals.List(GAP.Globals.PreImages(proj, els[j])))
+      end
+      #Now, I need to check all the possible subgroups.
+      it = cartesian_product_iterator(UnitRange{Int}[1:n for i = 1:length(els)], inplace = true)
+      sizes_preimages = Int[]
+      for I in it
+        sub = GAP.Globals.Subgroup(E, GAP.julia_to_gap([preimages[i][I[i]] for i = 1:length(els)]))
+        push!(sizes_preimages, GAP.Globals.Size(sub))
+        if maximum(sizes_preimages) != ord && minimum(sizes_preimages) == ord
+          break
         end
       end
-      for lelem in subgs
-        sub = GAP.Globals.Subgroup(E, GAP.julia_to_gap(lelem))
-        onew = GAP.Globals.Size(sub)
-        push!(sizes_preimages, onew)
+      if minimum(sizes_preimages) != ord
+        push!(ramify_here, p)
+      elseif maximum(sizes_preimages) == ord && !divides(fmpz(n), p)[1]
+        push!(not_ramify_here, p)
       end
     end
-    if minimum(sizes_preimages) != ord
-      #The prime must ramify!
-      l1 = Vector{Tuple{Int, Dict{NfOrdIdl, Int}}}()
-      if !divisible(fmpz(n), p)
-        for x in l_cond
-          if divisible(fmpz(x[1]), p) 
-            push!(l1, x)
-          end
+    if isempty(ramify_here) && isempty(not_ramify_here)
+      return l_cond
+    end
+    must_ramify[s] = ramify_here
+    cant_ramify[s] = not_ramify_here
+  end
+  #Now, we use what we found.
+  l_new = typeof(l_cond)()
+  for i = 1:length(l_cond)
+    tp, wp = l_cond[i]
+    satisfies_emb = trues(length(projections))
+    for j = 1:length(projections)
+      possible_emb = true
+      for p in must_ramify[j]
+        if divides(fmpz(tp), p)[1]
+          continue
         end
-      else
-        for x in l_cond
-          if !isempty(x[2])
-            lI = keys(x[2])
-            found = false
-            for k in lI
-              if minimum(k) == p
-                found = true
-                break
-              end
-            end
-            if found
-              push!(l1, x)
+        if divides(fmpz(n), p)[1]
+          found = false
+          for (q, w) in wp
+            if minimum(q, copy = false) == p
+              found = true
+              break
             end
           end
+          if !found
+            possible_emb = false
+            break
+          end
+        else
+          possible_emb = false
         end
-      end
-      l_cond = l1
-    elseif maximum(sizes_preimages) == ord && !divisible(fmpz(n), p)
-      #The prime must be unramified!
-      l1 = Vector{Tuple{Int, Dict{NfOrdIdl, Int}}}()
-      if !divisible(fmpz(n), p)
-        for x in l_cond
-          if !divisible(fmpz(x[1]), p) 
-            push!(l1, x)
-          end
-        end
-      else
-        for x in l_cond
-          if !isempty(x[2])
-            lI = keys(x[2])
-            found = false
-            for k in lI
-              if minimum(k) == p
-                found = true
-                break
-              end
-            end
-            if !found
-              push!(l1, x)
-            end
-          end
+        if !possible_emb
+          break
         end
       end
-      l_cond = l1
+      if !possible_emb
+        satisfies_emb[j] = false
+        continue
+      end
+      for p in cant_ramify[j]
+        if divides(fmpz(tp), p)[1]
+          possible_emb = false
+          continue
+        end
+        if divides(fmpz(n), p)[1]
+          found = false
+          for (q, w) in wp
+            if minimum(q, copy = false) == p
+              found = true
+              break
+            end
+          end
+          if found
+            possible_emb = false
+            break
+          end
+        end
+        if !possible_emb
+          break
+        end
+      end
+      if !possible_emb
+        satisfies_emb[j] = false
+      else
+        break
+      end
+    end
+    if any(satisfies_emb)
+      push!(l_new, l_cond[i])
     end
   end
-  return l_cond
-
+  return l_new
 end
 
 function conductors_with_restrictions(F::FieldsTower, st::Vector{Int}, IdG::GAP.GapObj, bound::fmpz; unramified_outside::Vector{fmpz} = fmpz[])
@@ -169,7 +198,7 @@ function conductors_with_restrictions(F::FieldsTower, st::Vector{Int}, IdG::GAP.
   O = maximal_order(F)
   l_cond = Hecke.conductors(O, st, bound, unramified_outside = unramified_outside)
   G = GAP.Globals.SmallGroup(IdG)
-  new_conds = _conductors_using_cocycles(F, st, l_cond, G)
+  new_conds = _conductors_using_cocycles(F, st, l_cond)
   if length(st) != 1 || !isprime(st[1]) || isempty(new_conds)
     return new_conds
   end
@@ -183,12 +212,12 @@ function conductors_with_restrictions(F::FieldsTower, st::Vector{Int}, IdG::GAP.
     #Regardless of the exponents, the norm of the discriminant will be a square
     if issquare && is_square_disc_base_field
       return new_conds
-    elseif issquare 
+    elseif issquare
       return typeof(new_conds)()
     else
       return new_conds
     end
-  end 
+  end
   #Now, p must be 2.
   if issquare && is_square_disc_base_field
     #Only the even exponents are allowed!
@@ -197,7 +226,7 @@ function conductors_with_restrictions(F::FieldsTower, st::Vector{Int}, IdG::GAP.
       if isempty(new_conds[i][2])
         push!(newer_conds, new_conds[i])
         continue
-      end 
+      end
       if iszero(mod(first(values(new_conds[i][2])), 2))
         push!(newer_conds, new_conds[i])
       end
@@ -240,7 +269,7 @@ function conductors_with_restrictions(F::FieldsTower, st::Vector{Int}, IdG::GAP.
       else
         continue
       end
-    end 
+    end
     #Now, p must be 2.
     if issquare && is_square_disc_base_field
       #Only the even exponents are allowed!

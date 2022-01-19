@@ -1,5 +1,5 @@
 ###########################################################
-## 
+##
 ## MAPS
 ##
 ## maps between residue rings of polynomials and in general
@@ -38,7 +38,7 @@ mutable struct MapCache{D, C, De, Ce}
   im::Dict{De, Ce}
   imStat::Dict{De, Int}
 
-  pr::Dict{Ce, De} 
+  pr::Dict{Ce, De}
   prStat::Dict{Ce, Int}
 
   old_im::Function
@@ -55,13 +55,12 @@ mutable struct MapCache{D, C, De, Ce}
   end
 end
 
-mutable struct MapHeader{D, C}
+@attributes mutable struct MapHeader{D, C}
   domain::D
   codomain::C
   image::Function
   preimage::Function
   cache::MapCache
-  @declare_other
 
   function MapHeader{D, C}() where {D, C}
     z = new{D, C}()
@@ -210,13 +209,13 @@ function Base.show(io::IO, M::MapFromFunc)
   io = IOContext(io, :compact => true)
 #  println(io, "Map from the $(M.f) julia-function")
   println(io, "Map from")
-  show(io, domain(M)) 
+  show(io, domain(M))
   print(io, " to ")
   show(io, codomain(M))
   print(io, " defined by a julia-function")
   if isdefined(M, :g)
 #    println(io, "with inverse by $(M.g)")
-    println(io, " with inverse")
+    print(io, " with inverse")
   end
 end
 
@@ -228,6 +227,12 @@ function MapFromFunc(f::Function, g::Function, D, C)
   return MapFromFunc{typeof(D), typeof(C)}(f, g, D, C)
 end
 
+function Base.inv(M::MapFromFunc)
+  if isdefined(M, :g)
+     return MapFromFunc(M.g, M.f, codomain(M), domain(M))
+  else
+     return MapFromFunc(x->preimage(M, x), codomain(M), domain(M))
+  end
+end
+
 export MapFromFunc
-
-

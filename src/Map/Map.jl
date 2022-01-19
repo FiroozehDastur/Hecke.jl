@@ -21,7 +21,6 @@ function show(io::IO, M::Map)
   print(io, "\nCodomain:\n")
   print(io, "=========\n")
   print(io, codomain(M))
-  print(io, "\n")
 end
 
 function preimage(M::Map{D, C}, a) where {D, C}
@@ -48,7 +47,7 @@ end
 function show(io::IO, M::InverseMap)
   @show_name(io, M)
   println(io, "inverse of")
-  println(io, " ", M.origin)
+  print(io, " ", M.origin)
 end
 
 function pseudo_inv(a::Map)
@@ -105,7 +104,7 @@ function _allow_cache!(M::Map, lim::Int, ::Type{D}, ::Type{C}, ::Type{De}, ::Typ
     M.header.cache.old_pr = M.header.preimage
     M.header.cache.old_im = M.header.image
   end
-  
+
   if length(methods(M.header.image)) > 1
     println("Cannot do image cache, too many types")
   else

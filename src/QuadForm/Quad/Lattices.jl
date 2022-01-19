@@ -194,8 +194,7 @@ end
 ################################################################################
 
 function lattice_in_same_ambient_space(L::QuadLat, m::PMat)
-  return quadratic_lattice(base_field(L), m,
-                           gram_ambient_space = gram_matrix(ambient_space(L)))
+  return lattice(ambient_space(L),m)
 end
 
 ################################################################################
@@ -240,6 +239,11 @@ end
 #
 ################################################################################
 
+@doc Markdown.doc"""
+    rescale(L::QuadLat, a) -> QuadLat
+
+Rescale the quadratic form `q` of the ambient space to `a \cdot q`
+"""
 function rescale(L::QuadLat, a)
   if isone(a)
     return L
@@ -260,7 +264,7 @@ end
 @doc Markdown.doc"""
     bad_primes(L::AbsLat; even = false) -> Vector{NfOrdIdl}
 
-Returns the prime ideals dividing the scale and volume of $L$. If `even == true`
+Return the prime ideals dividing the scale and volume of $L$. If `even == true`
 also the prime ideals dividing $2$ are included.
 """
 function bad_primes(L::QuadLat; even::Bool = false)
@@ -290,8 +294,7 @@ function dual(L::QuadLat)
   new_bmat = Gi * B
   new_coeff = eltype(C)[inv(c) for c in C]
   pm = pseudo_matrix(new_bmat, new_coeff)
-  return quadratic_lattice(base_field(L), pm,
-                           gram_ambient_space = gram_matrix(ambient_space(L)))
+  return lattice(ambient_space(L), pm)
 end
 
 ################################################################################
@@ -465,7 +468,7 @@ function ismaximal_integral(L::QuadLat, p)
     @assert ok
     _v = matrix(k, 1, length(__v), __v)
     e = map_entries(x -> hext\x, _v * V)
-    sp = (e * G * e')[1, 1]
+    sp = (e * G * transpose(e))[1, 1]
     valv = iszero(sp) ? inf : valuation(sp, p)
     @assert valv >= 2
     v = e
@@ -475,7 +478,7 @@ function ismaximal_integral(L::QuadLat, p)
     for x in PP
       @assert !iszero(x)
       xV = matrix(k, 1, length(x), x) * V
-      e = elem_type(K)[ hext\(xV[1, i]) for i in 1:ncols(xV) ] 
+      e = elem_type(K)[ hext\(xV[1, i]) for i in 1:ncols(xV) ]
       v = matrix(K, 1, length(e), e)
       _z = (v * G * transpose(v))[1, 1]
       # Test if valv >= val2 + 2
@@ -547,7 +550,7 @@ function ismaximal(L::QuadLat, p)
   #  return true, L
   #end
   v = valuation(norm(L), p)
-  x = uniformizer(p)^(-v)
+  x = elem_in_nf(uniformizer(p))^(-v)
   ok, LL = ismaximal_integral(rescale(L, x), p)
   if ok
     return true, L
@@ -559,7 +562,7 @@ end
 @doc Markdown.doc"""
     maximal_integral_lattice(V::QuadSpace) -> QuadLat
 
-Returns a lattice $L$ of $V$ such that the norm of $L$ is integral and $L$ is
+Return a lattice $L$ of $V$ such that the norm of $L$ is integral and $L$ is
 maximal with respect to this property.
 """
 function maximal_integral_lattice(V::QuadSpace)
@@ -575,14 +578,14 @@ function maximal_integral_lattice(V::QuadSpace)
     n = norm(L)
     @assert isintegral(n)
   end
-  
+
   return maximal_integral_lattice(L)
 end
 
 @doc Markdown.doc"""
     maximal_integral_lattice(L::QuadLat) -> QuadLat
 
-Returns a maximal integral lattice containing $L$.
+Return a maximal integral lattice containing $L$.
 """
 function maximal_integral_lattice(L::QuadLat)
   @req isintegral(norm(L)) "Lattice must be integral"

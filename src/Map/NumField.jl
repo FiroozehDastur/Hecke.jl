@@ -88,20 +88,20 @@
 #        hom(::NfRelNS{nf_elem}, AnticNumberField, nf_elem, Vector{nf_elem}))
 #     - a homorphism base_field(K) -> base_field(L)
 #   hom(K, L, ::Vector{elem_type(L)})
-#     - this assumes that the base_field of K embeds naturally into L 
+#     - this assumes that the base_field of K embeds naturally into L
 #
 # We also get a nice syntax to create inverses for free:
 #
 #     hom(K, L, ..., inverse = (x))
 #
-#  where x is such that hom(L, K, x) works. 
+#  where x is such that hom(L, K, x) works.
 #
 
 export restrict
 
 ################################################################################
 #
-# The NumFieldMor type
+#   The NumFieldMor type
 #
 ################################################################################
 
@@ -124,7 +124,7 @@ mutable struct NumFieldMor{S, T, U, V, W} <: Map{S, T, HeckeMap, NumFieldMor}
     z.header = MapHeader(K, L)
     return z
   end
-  
+
   function NumFieldMor{S, T, U, V}(h::MapHeader{S, T}, i::U, p::V) where {S, T, U, V}
     z = new{S, T, U, V, elem_type(S)}(h, i, p)
     return z
@@ -143,7 +143,6 @@ function hom(K::S, L::T, x...; inverse = nothing,
                                                                T <: NumField}
   header = MapHeader(K, L)
 
-  # Check if data defines a morphism
   image_data = map_data(K, L, x..., check = check)
 
   if inverse !== nothing
@@ -151,7 +150,7 @@ function hom(K::S, L::T, x...; inverse = nothing,
     # This goes through _validata_data, since we don't want to split the
     # argument if for example the argument is a Vector
     inverse_data = _map_data(L, K, inverse, check = check)
-    
+
     z = NumFieldMor{S, T, typeof(image_data),
                        typeof(inverse_data)}(header, image_data, inverse_data)
 
@@ -231,7 +230,7 @@ mutable struct MapDataFromAnticNumberField{T}
     z.isid = true
     return z
   end
-  
+
   function MapDataFromAnticNumberField{T}(x::T) where T
     z = new{T}(x, false)
     return z
@@ -271,7 +270,7 @@ function map_data(K::AnticNumberField, L, x::NumFieldElem; check = true)
     xx = x
   else
     xx = L(x)::elem_type(L)
-  end 
+  end
 
   if check
     if !iszero(evaluate(defining_polynomial(K), xx))
@@ -301,7 +300,7 @@ mutable struct MapDataFromNfRel{T, S}
     z = new{T, S}(x, y, false)
     return z
   end
-  
+
   function MapDataFromNfRel{T, S}(x::Bool) where {T, S}
     @assert x
     z = new{T, S}()
@@ -333,7 +332,7 @@ function image(f::MapDataFromNfRel, L, y)
   f.isid && return L(y)
   # TODO: Cache the polynomial ring
   Ly, = PolynomialRing(L, "y", cached = false)
-  z = map_coeffs(t -> image(f.base_field_map_data, L, t), y.data, parent = Ly)
+  z = map_coefficients(t -> image(f.base_field_map_data, L, t), y.data, parent = Ly)
   return evaluate(z, f.prim_image)
 end
 
@@ -368,13 +367,13 @@ function map_data(K::NfRel, L, x...; check = true)
   end
 
   if check
-    y = evaluate(map_coeffs(w -> image(z, L, w), defining_polynomial(K), cached = false), yy)
+    y = evaluate(map_coefficients(w -> image(z, L, w), defining_polynomial(K), cached = false), yy)
     !iszero(y) && error("Data does not define a morphism")
   end
 
   @assert typeof(yy) == elem_type(L)
   @assert typeof(z) == map_data_type(base_field(K), L)
-     
+
   return MapDataFromNfRel{typeof(yy), typeof(z)}(yy, z)
 end
 
@@ -387,7 +386,7 @@ mutable struct MapDataFromNfAbsNS{T}
     z = new{T}(x, false)
     return z
   end
-  
+
   function MapDataFromNfAbsNS{T}(x::Bool) where {T}
     @assert x
     z = new{T}()
@@ -406,7 +405,7 @@ function _isequal(K, L, u::MapDataFromNfAbsNS{T}, v::MapDataFromNfAbsNS{T}) wher
     return true
   end
 
-  return v.images == u.images 
+  return v.images == u.images
 end
 
 function image(f::MapDataFromNfAbsNS, L, y)
@@ -442,12 +441,12 @@ function map_data(K::NfAbsNS, L, x::Vector; check = true)
         error("Data does not define a morphism")
       end
     end
-  end 
+  end
 
   @assert typeof(xx) == Vector{elem_type(L)}
 
   return MapDataFromNfAbsNS{typeof(xx)}(xx)
-end 
+end
 
 # From NfRelNS into something
 mutable struct MapDataFromNfRelNS{T, S}
@@ -459,7 +458,7 @@ mutable struct MapDataFromNfRelNS{T, S}
     z = new{T, S}(x, y, false)
     return z
   end
-  
+
   function MapDataFromNfRelNS{T, S}(x::Bool) where {T, S}
     @assert x
     z = new{T, S}()
@@ -478,7 +477,7 @@ end
 
 function image(f::MapDataFromNfRelNS, L, y)
   f.isid && return L(y)
-  z = map_coeffs(w -> image(f.base_field_map_data, L, w), y.data, cached = false)
+  z = map_coefficients(w -> image(f.base_field_map_data, L, w), y.data, cached = false)
   return evaluate(z, f.images)
 end
 
@@ -521,7 +520,7 @@ function map_data(K::NfRelNS, L, x...; check = true)
 
   if check
     for i in 1:ngens(K)
-      w = evaluate(map_coeffs(w -> image(z, L, w), K.pol[i], cached = false), yy)
+      w = evaluate(map_coefficients(w -> image(z, L, w), K.pol[i], cached = false), yy)
       !iszero(w) && error("Data does not define a morphism")
     end
   end
@@ -607,9 +606,9 @@ const NfAbsNSToNfAbsNS = morphism_type(NfAbsNS, NfAbsNS)
 
 const NfAbsToNfAbsNS = morphism_type(AnticNumberField, NfAbsNS)
 
-const NfToNfRel =  morphism_type(AnticNumberField, NfRel{nf_elem})
+const NfToNfRel = morphism_type(AnticNumberField, NfRel{nf_elem})
 
-const NfRelToNfRelMor_nf_elem_nf_elem =  morphism_type(NfRel{nf_elem}, NfRel{nf_elem})
+const NfRelToNfRelMor_nf_elem_nf_elem = morphism_type(NfRel{nf_elem}, NfRel{nf_elem})
 
 const NfRelToNf = morphism_type(NfRel{nf_elem}, AnticNumberField)
 
@@ -693,7 +692,6 @@ function haspreimage(f::NumFieldMor, g::NumFieldElem)
     return true, image(f.inverse_data, domain(f), g)
   end
   @assert parent(g) === codomain(f)
-  d = absolute_degree(parent(g))
   cc = absolute_coordinates(g)
   K = domain(f)
   _assert_has_preimage_data(f)
@@ -703,7 +701,7 @@ function haspreimage(f::NumFieldMor, g::NumFieldElem)
   else
     b = f.absolute_basis
     # This is suboptimal
-    prim_preimg = reduce(+, (s[i, 1] * b[i] for i in 1:d), init = zero(K))::elem_type(K)
+    prim_preimg = reduce(+, (s[i, 1] * b[i] for i in 1:length(b)), init = zero(K))::elem_type(K)
     return true, prim_preimg
   end
 end
@@ -800,7 +798,15 @@ end
 #
 ################################################################################
 
-function map_data(K::NumField, L::NumField; check = true)
+function map_data(K::NumField, L; check = true)
+  return map_data(K, L, true)
+end
+
+function map_data(K::NfRel, L; check = true)
+  return map_data(K, L, true)
+end
+
+function map_data(K::NfRelNS, L; check = true)
   return map_data(K, L, true)
 end
 
@@ -871,6 +877,8 @@ function ^(f::NumFieldMor, b::Int)
     return z
   end
 end
+
+^(a::NumFieldMor, n::IntegerUnion)  = _generic_power(a, n)
 
 ################################################################################
 #

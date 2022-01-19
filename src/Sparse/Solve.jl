@@ -6,7 +6,7 @@ function can_solve_ut(A::SMat{T}, g::SRow{T}) where T <: Union{FieldElem, nmod}
   # the transformation
   # supposed to be over a field...
 
-  sol = typeof(g)()
+  sol = sparse_row(base_ring(g))
 
   while length(g)>0
     s = g.pos[1]
@@ -56,7 +56,7 @@ successful. In this case, the numerator is returned as a matrix and the
 common denominator in the third value.
 """
 function rational_reconstruction(A::SRow{fmpz}, M::fmpz)
-  B = SRow{fmpz}()
+  B = sparse_row(FlintZZ)
   de = fmpz(1)
   M2 = div(M, 2)
   nbM = div(nbits(M), 2)
@@ -89,7 +89,7 @@ function solve_ut(A::SMat{fmpz}, b::SRow{fmpz})
   @hassert :HNF 1  isupper_triangular(A)
   #still assuming A to be upper-triag
 
-  sol = SRow{fmpz}()
+  sol = sparse_row(FlintZZ)
   den = fmpz(1)
   while length(b) > 0
     p = b.pos[1]
@@ -258,18 +258,18 @@ function solve_dixon_sf(A::SMat{fmpz}, B::SMat{fmpz}, is_int::Bool = false)
 
   Bp = copy(Ap)
   reverse_rows!(Bp)
-  Bp = Bp'
+  Bp = transpose(Bp)
   Ep, Tp = echelon_with_transform(Bp)
   @hassert :HNF 1  Ep.c == Ep.r
 #  @hassert :HNF 1  nmod_mat(Tp) * nmod_mat(Bp) == nmod_mat(Ep)
 
   reverse_rows!(Ep)
-  Ep = Ep'
+  Ep = transpose(Ep)
   reverse_rows!(Ep)
 #  @hassert :HNF 1  Hecke.isupper_triangular(Ep)
 
   reverse_rows!(Tp)
-  Tp = Tp'
+  Tp = transpose(Tp)
 #  @hassert :HNF 1  nmod_mat(Ap)*nmod_mat(Tp) == nmod_mat(Ep)
 
   #now, to solve xA = b, we do
@@ -372,8 +372,8 @@ function echelon!(S::SMat{T}; complete::Bool = false) where T <: FieldElem
         j += 1
       end
     end
-    i += 1  
-  end  
+    i += 1
+  end
   if complete
     for i = nrows(S):-1:2
       p = S[i].pos[1]

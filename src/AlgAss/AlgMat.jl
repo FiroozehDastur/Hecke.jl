@@ -28,6 +28,10 @@ order_type(::Type{AlgMat{fmpq, S}}) where { S } = AlgAssAbsOrd{AlgMat{fmpq, S}, 
 order_type(::AlgMat{T, S}) where { T <: NumFieldElem, S } = AlgAssRelOrd{T, fractional_ideal_type(order_type(parent_type(T))), AlgMat{T, S}}
 order_type(::Type{AlgMat{T, S}}) where { T <: NumFieldElem, S } = AlgAssRelOrd{T, fractional_ideal_type(order_type(parent_type(T))), AlgMat{T, S}}
 
+matrix_algebra_type(K::Field) = matrix_algebra_type(typeof(K))
+
+matrix_algebra_type(::Type{T}) where {T <: Field} = AlgMat{elem_type(T), dense_matrix_type(elem_type(T))}
+
 # Returns the dimension d of the coefficient_ring of A, so that dim(A) = degree(A)^2 + d.
 function dim_of_coefficient_ring(A::AlgMat)
   if base_ring(A) == coefficient_ring(A)
@@ -89,8 +93,9 @@ function assure_has_basis_matrix(A::AlgMat)
     M = zero_matrix(base_ring(A), dim(A), d2)
     for i = 1:dim(A)
       N = matrix(A[i])
-      for j = 1:d2
-        M[i, j] = N[j]
+      @assert length(N) == d2
+      for (j, n) in enumerate(N)
+        M[i, j] = n
       end
     end
     A.basis_matrix = M
@@ -99,10 +104,10 @@ function assure_has_basis_matrix(A::AlgMat)
     M = zero_matrix(base_ring(A), dim(A), d2*dcr)
     for i = 1:dim(A)
       N = matrix(A[i])
-      for j = 1:d2
+      for (j, n) in enumerate(N)
         jj = (j - 1)*dcr
         for k = 1:dcr
-          M[i, jj + k] = coeffs(N[j], copy = false)[k]
+          M[i, jj + k] = coefficients(n, copy = false)[k]
         end
       end
     end
@@ -136,7 +141,7 @@ function assure_has_multiplication_table(A::AlgMat{T, S}) where { T, S }
   mt = Array{T, 3}(undef, d, d, d)
   for i in 1:d
     for j in 1:d
-      mt[i, j, :] = coeffs(B[i]*B[j], copy = false)
+      mt[i, j, :] = coefficients(B[i]*B[j], copy = false)
     end
   end
   A.mult_table = mt
@@ -243,9 +248,9 @@ function matrix_algebra(R::Ring, gens::Vector{<:MatElem}; isbasis::Bool = false)
       bas[i] = A(gens[i])
     end
     A.basis = bas
-
     return A
   end
+  A.gens = A.(gens)
 
   d = degree(A)
   d2 = degree(A)^2
@@ -257,7 +262,7 @@ function matrix_algebra(R::Ring, gens::Vector{<:MatElem}; isbasis::Bool = false)
   cur_rank = 0
   for i = 1:length(span)
     cur_rank == d2 ? break : nothing
-    new_elt = _add_row_to_rref!(M, [ span[i][j] for j = 1:d2 ], pivot_rows, cur_rank + 1)
+    new_elt = _add_row_to_rref!(M, reshape(collect(span[i]), :), pivot_rows, cur_rank + 1)
     if new_elt
       push!(new_elements, i)
       cur_rank += 1
@@ -275,7 +280,7 @@ function matrix_algebra(R::Ring, gens::Vector{<:MatElem}; isbasis::Bool = false)
       s = b*span[r]
       for l = 1:n
         t = span[l]*s
-        new_elt = _add_row_to_rref!(M, [ t[j] for j = 1:d2 ], pivot_rows, cur_rank + 1)
+        new_elt = _add_row_to_rref!(M, reshape(collect(t), :), pivot_rows, cur_rank + 1)
         if !new_elt
           continue
         end
@@ -318,7 +323,7 @@ If `isbasis` is `true`, it is assumed that the given matrices are an $R$-basis
 of this algebra, i. e. that the spanned $R$-module is closed under
 multiplication.
 """
-function matrix_algebra(R::Ring, S::Ring, gens::Vector{<:MatElem}; isbasis::Bool = false)
+function matrix_algebra(R::AbstractAlgebra.NCRing, S::AbstractAlgebra.NCRing, gens::Vector{<:MatElem}; isbasis::Bool = false)
   @assert length(gens) > 0
   A = AlgMat{elem_type(R), dense_matrix_type(elem_type(S))}(R, S)
   A.degree = nrows(gens[1])
@@ -347,10 +352,11 @@ function matrix_algebra(R::Ring, S::Ring, gens::Vector{<:MatElem}; isbasis::Bool
   v = Vector{elem_type(R)}(undef, max_dim)
   for i = 1:length(span)
     cur_rank == max_dim ? break : nothing
-    for j = 1:d2
+    @assert length(span[i]) == d2
+    for (j, s) in enumerate(span[i])
       jj = (j - 1)*dcr
       for k = 1:dcr
-        v[jj + k] = coeffs(span[i][j], copy = false)[k]
+        v[jj + k] = coefficients(s, copy = false)[k]
       end
     end
     new_elt = _add_row_to_rref!(M, v, pivot_rows, cur_rank + 1)
@@ -371,10 +377,11 @@ function matrix_algebra(R::Ring, S::Ring, gens::Vector{<:MatElem}; isbasis::Bool
       s = b*span[r]
       for l = 1:n
         t = span[l]*s
-        for j = 1:d2
+        @assert length(t) == d2
+        for (j, s) in enumerate(t)
           jj = (j - 1)*dcr
           for k = 1:dcr
-            v[jj + k] = coeffs(t[j], copy = false)[k]
+            v[jj + k] = coefficients(s, copy = false)[k]
           end
         end
         new_elt = _add_row_to_rref!(M, v, pivot_rows, cur_rank + 1)
@@ -459,16 +466,18 @@ function _check_matrix_in_algebra(M::S, A::AlgMat{T, S}, short::Type{Val{U}} = V
   B = basis_matrix(A, copy = false)
   if coefficient_ring(A) == base_ring(A)
     t = zero_matrix(base_ring(A), 1, d2)
-    for i = 1:d2
-      t[1, i] = M[i]
+    @assert length(M) == d2
+    for (i, m) in enumerate(M)
+      t[1, i] = m
     end
   else
     dcr = dim_of_coefficient_ring(A)
     t = zero_matrix(base_ring(A), 1, d2*dcr)
-    for i = 1:d2
+    @assert length(M) == d2
+    for (i, m) in enumerate(M)
       ii = (i - 1)*dcr
       for j = 1:dcr
-        t[1, ii + j] = coeffs(M[i], copy = false)[j]
+        t[1, ii + j] = coefficients(m, copy = false)[j]
       end
     end
   end
@@ -589,3 +598,16 @@ function iscanonical(A::AlgMat)
   A.canonical_basis = 1
   return true
 end
+
+################################################################################
+#
+#  Opposite algebra
+#
+################################################################################
+
+function opposite_algebra(A::AlgMat)
+  B, BtoA = AlgAss(A)
+  O, BtoO = opposite_algebra(B)
+  return O, compose_and_squash(BtoO, inv(BtoA))
+end
+

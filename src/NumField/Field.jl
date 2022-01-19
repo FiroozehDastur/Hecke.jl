@@ -6,7 +6,7 @@ export absolute_degree, absolute_discriminant
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     base_field(L::NumField) -> NumField
 
 Given a number field $L/K$ this function returns the base field $K$.
@@ -26,7 +26,7 @@ _base_ring(::FlintRationalField) = FlintQQ
 
 export isabsolute
 
-@doc Markdown.doc"""
+@doc doc"""
     isabsolute(L::NumField) -> Bool
 
 Returns whether $L$ is an absolute extension, that is, whether the base field
@@ -38,23 +38,27 @@ isabsolute(::NumField) = false
 
 isabsolute(::NumField{fmpq}) = true
 
-@doc Markdown.doc"""
-    elem_type(L::NumField) -> Type
-
-Returns the type of the elements of $L$.
-"""
-elem_type(::NumField)
-
 ################################################################################
 #
 #  Degree
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     degree(L::NumField) -> Int
 
 Given a number field $L/K$, this function returns the degree of $L$ over $K$.
+
+# Examples
+
+```jldoctest
+julia> Qx, x = QQ["x"];
+
+julia> K, a = NumberField(x^2 - 2, "a");
+
+julia> degree(K)
+2
+```
 """
 degree(A::NumField)
 
@@ -66,7 +70,7 @@ dim(K::NumField) = degree(K)
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     absolute_degree(L::NumField) -> Int
 
 Given a number field $L/K$, this function returns the degree of $L$ over
@@ -80,17 +84,19 @@ function absolute_degree(K::NumField{fmpq})
   return degree(K)
 end
 
+absolute_degree(::FlintRationalField) = 1
+
 ################################################################################
 #
 #  Is simple extension
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     issimple(L::NumField) -> Bool
 
 Given a number field $L/K$ this function returns whether $L$ is simple, that is,
-whether $L/K$ is defined by a univariate polynomial$.
+whether $L/K$ is defined by a univariate polynomial.
 """
 issimple(a::NumField)
 
@@ -100,19 +106,39 @@ issimple(a::NumField)
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     NumberField(f::Poly{NumFieldElem}, s::String;
                 cached::Bool = false, check::Bool = false) -> NumField, NumFieldElem
 
 Given an irreducible polynomial $f \in K[x]$ over some number field $K$, this
-function creates the simple number field $L = K[x]/(x)$ and returns $(L, b)$,
+function creates the simple number field $L = K[x]/(f)$ and returns $(L, b)$,
 where $b$ is the class of $x$ in $L$. The string `s` is used only for printing
 the primitive element $b$.
 
-Testing that $f$ is irreducible can be disabled by setting the keyword argument
-`check` to `false`.
+- `check`: Controls whether irreducibility of $f$ is checked.
+- `cached`: Controls whether the result is cached.
+
+# Examples
+
+```jldoctest
+julia> K, a = quadratic_field(5);
+
+julia> Kt, t = K["t"];
+
+julia> L, b = NumberField(t^3 - 3, "b");
+```
 """
-NumberField(f::PolyElem{<:NumFieldElem}, s::String;
+function _doc_stub_nf end
+
+# To work around a bug in the built documentation.
+
+abstract type DocuDummy end
+
+@doc (@doc _doc_stub_nf)
+NumberField(::DocuDummy)
+
+@doc (@doc _doc_stub_nf)
+NumberField(f::PolyElem{<: NumFieldElem}, s::String;
             cached::Bool = false, check::Bool = false)
 
 ################################################################################
@@ -130,7 +156,7 @@ iscommutative(::FlintRationalField) = true
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     normal_basis(L::NumField) -> NumFieldElem
 
 Given a normal number field $L/K$, this function returns an element $a$ of $L$,
@@ -142,7 +168,7 @@ function normal_basis(L::NumField)
   K = base_field(L)
   Aut = automorphisms(L)
 
-  length(Aut) != degree(L) && error("The field is not normal over the rationals!")
+  @req length(Aut) != degree(L) "The field must be normal over its base field"
 
   A = zero_matrix(K, n, n)
   r = one(L)
@@ -167,7 +193,7 @@ function isnormal_basis_generator(a::NumFieldElem)
   K = base_field(L)
   Aut = automorphisms(L)
 
-  length(Aut) != degree(L) && error("The field is not normal over the rationals!")
+  @req length(Aut) != degree(L) "The field must be normal over its base field"
 
   A = zero_matrix(K, n, n)
   for i = 1:n
@@ -226,7 +252,7 @@ iscached(L::NonSimpleNumField) = false
 export set_var!, set_vars!
 
 #the Symbol is part of the key for caching, hence it should be be changed
-@doc Markdown.doc"""
+@doc doc"""
     set_var!(L::SimpleNumField, s::String)
     set_var!(L::SimpleNumField, s::Symbol)
 
@@ -244,15 +270,15 @@ function set_var!(L::SimpleNumField{T}, s::Symbol) where {T}
   L.S = s
   nothing
 end
-@doc Markdown.doc"""
+
+@doc doc"""
     set_vars!(L::NonSimpleNumField{T}, a::String)
     set_vars!(L::NonSimpleNumField{T}, a::Symbol)
 
-Sets the string printed for each generator of the field. If the
-string contains '#', then the hash-character is replaced by the index,
-otherwise, the index is appended to the string.
-Eg. `set_vars!(L, "g[#]")` will make the generators print like
-array elements.
+Sets the string printed for each generator of the field. If the string contains
+'#', then the hash-character is replaced by the index, otherwise, the index is
+appended to the string.  Eg. `set_vars!(L, "g[#]")` will make the generators
+print like array elements.
 """
 function set_vars!(L::NonSimpleNumField{T}, a::Symbol) where {T}
   return set_vars!(L, String(a))
@@ -268,20 +294,20 @@ function set_vars!(L::NonSimpleNumField{T}, a::String) where {T}
   return set_vars!(L, S)
 end
 
-@doc Markdown.doc"""
-    set_vars!(L::NonSimpleNumField{T}, a::Array{String, 1})
-    set_vars!(L::NonSimpleNumField{T}, a::Array{Symbol, 1})
+@doc doc"""
+    set_vars!(L::NonSimpleNumField{T}, a::Vector{String})
+    set_vars!(L::NonSimpleNumField{T}, a::Vector{Symbol})
 
 Set the printing names for the generators to the string specified in
 the array. The length has to be exactly `ngens(L)`.
 """
-function set_vars!(L::NonSimpleNumField{T}, a::Array{String, 1}) where {T}
+function set_vars!(L::NonSimpleNumField{T}, a::Vector{String}) where {T}
   length(a) == ngens(L) || error("need to have as many strings as generators")
   L.S = [Symbol(s) for s = a]
   nothing
 end
 
-function set_vars!(L::NonSimpleNumField{T}, a::Array{Symbol, 1}) where {T}
+function set_vars!(L::NonSimpleNumField{T}, a::Vector{Symbol}) where {T}
   length(a) == ngens(L) || error("need to have as many strings as generators")
   L.S = a
   nothing
@@ -290,7 +316,7 @@ end
 iscyclotomic_type(K::NonSimpleNumField{T}) where {T} = false, fmpz(1)
 iscyclotomic_type(K::NfRel) = false, fmpz(1)
 function iscyclotomic_type(L::AnticNumberField)
-  f = get_special(L, :cyclo)
+  f = get_attribute(L, :cyclo)
   if f === nothing
     return false, fmpz(1)
   end
@@ -300,7 +326,7 @@ end
 isquadratic_type(K::NonSimpleNumField{T}) where {T} = false, fmpz(1)
 isquadratic_type(K::NfRel) = false, fmpz(1)
 function isquadratic_type(L::AnticNumberField)
-  f = get_special(L, :show)
+  f = get_attribute(L, :show)
   if f === Hecke.show_quad
     return true, numerator(-coeff(L.pol, 0))
   end
@@ -312,11 +338,12 @@ end
 #  Absolute basis
 #
 ################################################################################
-@doc Markdown.doc"""
+
+@doc doc"""
     absolute_basis(K::NumField) -> Vector{NumFieldElem}
 
-Returns an array of elements that form a basis of $K$ (as a vector space) 
-over the rationals. 
+Returns an array of elements that form a basis of $K$ (as a vector space)
+over the rationals.
 """
 absolute_basis(::NumField)
 
@@ -345,7 +372,7 @@ end
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     discriminant_sign(K::NumField) -> Int
 
 Returns the sign of the discriminant of the maximal order of $K$.
@@ -358,4 +385,136 @@ function discriminant_sign(K::NumField)
   else
     return -1
   end
+end
+
+################################################################################
+#
+#  Unit group rank
+#
+################################################################################
+
+@doc Markdown.doc"""
+    unit_group_rank(K::NumField) -> Int
+
+Return the rank of the unit group of any order of $K$.
+"""
+function unit_group_rank(K::NumField)
+  r1, r2 = signature(K)
+  return r1 + r2 - 1
+end
+
+################################################################################
+#
+#  Signature
+#
+################################################################################
+
+@doc doc"""
+    signature(K::NumField)
+
+Return the signature of the number field of $K$.
+
+# Examples
+```jldoctest
+julia> Qx, x = QQ["x"];
+
+julia> K, a = NumberField(x^2 - 2, "a");
+
+julia> signature(K)
+(2, 0)
+```
+"""
+function signature(K::NumField) end
+
+################################################################################
+#
+#  Infinite places
+#
+################################################################################
+
+@doc Markdown.doc"""
+    infinite_places(K::NumField) -> Vector{Plc}
+
+This function returns all infinite places of $K$.
+
+# Examples
+
+```jldoctest
+julia> Qx, x = QQ["x"];
+
+julia> K, a = NumberField(x^2 - 2, "a");
+
+julia> infinite_places(K)
+2-element Vector{InfPlc}:
+ Real place of
+Number field over Rational Field with defining polynomial x^2 - 2
+corresponding to the root [-1.414213562373095049 +/- 3.90e-19]
+ Real place of
+Number field over Rational Field with defining polynomial x^2 - 2
+corresponding to the root [1.414213562373095049 +/- 3.90e-19]
+```
+"""
+function infinite_places(::NumField) end
+
+@doc doc"""
+    isreal(P::Plc)
+
+Return whether the embedding into $\mathbf{C}$ defined by $P$ is real or not.
+"""
+function isreal(::Plc) end
+
+@doc Markdown.doc"""
+    iscomplex(P::Plc) -> Bool
+
+Return whether the embedding into $\mathbf{C}$ defined by $P$ is complex or not.
+"""
+function iscomplex(::Plc) end
+
+################################################################################
+#
+#  Is abelian
+#
+################################################################################
+
+@doc doc"""
+    isabelian(L::NumField) -> Bool
+
+Check if the number field $L/K$ is abelian over $K$.  The function is
+probabilistic and assumes GRH.
+"""
+function isabelian(::NumField) end
+
+################################################################################
+#
+#  Automorphisms
+#
+################################################################################
+
+@doc doc"""
+    automorphisms(L::NumField) -> Vector{NumFieldMor}
+
+Given a number field $L/K$, return a list of all $K$-automorphisms of $L$.
+"""
+function automorphisms(L::NumField) end
+
+################################################################################
+#
+#  Appears as a base_field?
+#
+################################################################################
+
+function _appears_as_base_field(K::NumField, L::NumField)
+  if K === base_field(L)
+    return true
+  else
+    return _appears_as_base_field(K, base_field(L))
+  end
+end
+
+function _appears_as_base_field(K::NumField, ::AnticNumberField)
+  return false
+end
+
+function _appears_as_base_field(K::NumField, ::NfAbsNS)
+  return false
 end

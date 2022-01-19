@@ -1,4 +1,4 @@
-export *,+, basis_matrix, ambient_space, base_ring, base_field
+export *,+, basis_matrix, ambient_space, base_ring, base_field, root_lattice, kernel_lattice, invariant_lattice
 # scope & verbose scope: :Lattice
 
 basis_matrix(L::ZLat) = L.basis_matrix
@@ -21,8 +21,22 @@ base_field(L::ZLat) = base_ring(gram_matrix(ambient_space(L)))
 Return the Z-lattice with basis matrix $B$ inside the quadratic space with
 Gram matrix `gram`.
 
-If `gram` is not specified, the Gram matrix is the identity matrix. If $B$
-is not specified, the basis matrix is the identity matrix.
+If the keyword `gram` is not specified, the Gram matrix is the identity matrix.
+If $B$ is not specified, the basis matrix is the identity matrix.
+
+# Examples
+
+```jldoctest
+julia> L = Zlattice(matrix(QQ, 2, 2, [1//2, 0, 0, 2]));
+
+julia> gram_matrix(L) == matrix(QQ, 2, 2, [1//4, 0, 0, 4])
+true
+
+julia> L = Zlattice(gram = matrix(ZZ, [2 -1; -1 2]));
+
+julia> gram_matrix(L) == matrix(ZZ, [2 -1; -1 2])
+true
+```
 """
 function Zlattice(B::fmpq_mat; gram = identity_matrix(FlintQQ, ncols(B)))
   @req issymmetric(gram) "Gram matrix must be symmetric"
@@ -63,7 +77,7 @@ function lattice(V::QuadSpace{FlintRationalField, fmpq_mat}, B::MatElem; isbasis
   if !isbasis
     BB = fmpq_mat(hnf(FakeFmpqMat(B), :upper_right))
     i = nrows(BB)
-    while iszero_row(BB, i)
+    while i > 0 && iszero_row(BB, i)
       i = i - 1
     end
     return ZLat(V, BB[1:i, :])
@@ -83,6 +97,7 @@ function rescale(G::ZLat, r)
   Vr = quadratic_space(QQ, r*gram_space)
   return lattice(Vr, B)
 end
+
 ################################################################################
 #
 #  Gram matrix
@@ -93,6 +108,15 @@ end
     gram_matrix(L::ZLat) -> fmpq_mat
 
 Return the gram matrix of $L$.
+
+# Examples
+```jldoctest
+julia> L = Zlattice(matrix(ZZ, [2 0; -1 2]));
+
+julia> gram_matrix(L)
+[ 4   -2]
+[-2    5]
+```
 """
 function gram_matrix(L::ZLat)
   if isdefined(L, :gram_matrix)
@@ -117,6 +141,17 @@ gram_matrix_of_rational_span(L::ZLat) = gram_matrix(L)
 
 Return the rational span of $L$, which is the quadratic space with Gram matrix
 equal to `gram_matrix(L)`.
+
+# Examples
+```jldoctest
+julia> L = Zlattice(matrix(ZZ, [2 0; -1 2]));
+
+julia> rational_span(L)
+Quadratic space over
+Rational Field
+with Gram matrix
+[4 -2; -2 5]
+```
 """
 function rational_span(L::ZLat)
   if isdefined(L, :rational_span)
@@ -192,6 +227,12 @@ function assert_has_automorphisms(L::ZLat; redo::Bool = false,
     return nothing
   end
 
+  if rank(L) == 0
+    L.automorphism_group_generators = fmpz_mat[identity_matrix(ZZ, 0)]
+    L.automorphism_group_order = one(fmpz)
+    return nothing
+  end
+
   V = ambient_space(L)
   GL = gram_matrix(L)
   d = denominator(GL)
@@ -249,7 +290,7 @@ end
 
 function automorphism_group_generators(L::ZLat; ambient_representation::Bool = true)
 
-  @req isdefinite(L) "The lattice must be definite"
+  @req rank(L) == 0 || isdefinite(L) "The lattice must be definite"
   assert_has_automorphisms(L)
 
   gens = L.automorphism_group_generators
@@ -258,10 +299,10 @@ function automorphism_group_generators(L::ZLat; ambient_representation::Bool = t
   else
     # Now translate to get the automorphisms with respect to basis_matrix(L)
     bm = basis_matrix(L)
-    bminv = inv(bm)
     gens = L.automorphism_group_generators
     V = ambient_space(L)
     if rank(L) == rank(V)
+      bminv = inv(bm)
       res = fmpq_mat[bminv * change_base_ring(FlintQQ, g) * bm for g in gens]
     else
       # Extend trivially to the orthogonal complement of the rational span
@@ -275,7 +316,7 @@ function automorphism_group_generators(L::ZLat; ambient_representation::Bool = t
       D = identity_matrix(FlintQQ, rank(V) - rank(L))
       res = fmpq_mat[Cinv * diagonal_matrix(change_base_ring(FlintQQ, g), D) * C for g in gens]
     end
-    @hassert :Lattice 1 all(g * gram_matrix(V) * g' == gram_matrix(V)
+    @hassert :Lattice 1 all(g * gram_matrix(V) * transpose(g) == gram_matrix(V)
                             for g in res)
     return res
   end
@@ -318,9 +359,9 @@ function isisometric(L::ZLat, M::ZLat; ambient_representation::Bool = true)
   # Now compute LLL reduces gram matrices
 
   GLlll, TL = lll_gram_with_transform(GLint)
-  @hassert :Lattice 1 TL * change_base_ring(FlintZZ, GL) * TL' * dL == GLlll *cL
+  @hassert :Lattice 1 TL * change_base_ring(FlintZZ, GL) * transpose(TL) * dL == GLlll *cL
   GMlll, TM = lll_gram_with_transform(GMint)
-  @hassert :Lattice 1 TM * change_base_ring(FlintZZ, GM) * TM' * dM == GMlll *cM
+  @hassert :Lattice 1 TM * change_base_ring(FlintZZ, GM) * transpose(TM) * dM == GMlll *cM
 
   # Setup for Plesken--Souvignier
 
@@ -339,7 +380,7 @@ function isisometric(L::ZLat, M::ZLat; ambient_representation::Bool = true)
   if b
     T = change_base_ring(FlintQQ, inv(TL)*T*TM)
     if !ambient_representation
-      @hassert :Lattice 1 T * gram_matrix(M) * T' == gram_matrix(L)
+      @hassert :Lattice 1 T * gram_matrix(M) * transpose(T) == gram_matrix(L)
       return true, T
     else
       V = ambient_space(L)
@@ -363,7 +404,7 @@ function isisometric(L::ZLat, M::ZLat; ambient_representation::Bool = true)
         D = identity_matrix(FlintQQ, rank(V) - rank(L))
         T = inv(CV) * diagonal_matrix(T, D) * CW
       end
-        @hassert :Lattice 1 T * gram_matrix(ambient_space(M))  * T' ==
+        @hassert :Lattice 1 T * gram_matrix(ambient_space(M))  * transpose(T) ==
                   gram_matrix(ambient_space(L))
       return true, T
     end
@@ -422,14 +463,17 @@ function issublattice_with_relations(M::ZLat, N::ZLat)
 @doc Markdown.doc"""
     root_lattice(R::Symbol, n::Int)
 
-Return the root lattice of type `R` with parameter `n`. At the moment only
-type `:A` is supported.
+Return the root lattice of type `R` given by ``:A``, ``:D`` or ``:E`` with parameter `n`.
 """
 function root_lattice(R::Symbol, n::Int)
   if R === :A
     return Zlattice(gram = _root_lattice_A(n))
+  elseif R === :E
+    return Zlattice(gram = _root_lattice_E(n))
+  elseif R === :D
+    return Zlattice(gram = _root_lattice_D(n))
   else
-    error("Type (:$R) must be :A")
+    error("Type (:$R) must be :A, :D or :E")
   end
 end
 
@@ -446,6 +490,55 @@ function _root_lattice_A(n::Int)
     end
   end
   return z
+end
+
+function _root_lattice_D(n::Int)
+  n < 2 && error("Parameter ($n) for root lattices of type :D must be greater or equal to 2")
+  if n == 2
+    G = matrix(ZZ, [2 0 ;0 2])
+  elseif n == 3
+    return _root_lattice_A(n)
+  else
+    G = zero_matrix(ZZ, n, n)
+    G[1,3] = G[3,1] = -1
+    for i in 1:n
+      G[i,i] = 2
+      if 2 <= i <= n-1
+        G[i,i+1] = G[i+1,i] = -1
+      end
+    end
+  end
+  return G
+end
+
+function _root_lattice_E(n::Int)
+  n in [6,7,8] || error("Parameter ($n) for lattice of type :E must be 6, 7 or 8")
+  if n == 6
+    G = [2 -1 0 0 0 0;
+        -1 2 -1 0 0 0;
+        0 -1 2 -1 0 -1;
+        0 0 -1 2 -1 0;
+        0 0 0 -1 2 0;
+        0 0 -1 0 0 2]
+  elseif n == 7
+    G = [2 -1 0 0 0 0 0;
+        -1 2 -1 0 0 0 0;
+        0 -1 2 -1 0 0 -1;
+        0 0 -1 2 -1 0 0;
+        0 0 0 -1 2 -1 0;
+        0 0 0 0 -1 2 0;
+        0 0 -1 0 0 0 2]
+  else
+    G = [2 -1 0 0 0 0 0 0;
+        -1 2 -1 0 0 0 0 0;
+        0 -1 2 -1 0 0 0 -1;
+        0 0 -1 2 -1 0 0 0;
+        0 0 0 -1 2 -1 0 0;
+        0 0 0 0 -1 2 -1 0;
+        0 0 0 0 0 -1 2 0;
+        0 0 -1 0 0 0 0 2]
+  end
+  return matrix(ZZ, G)
 end
 
 ################################################################################
@@ -504,6 +597,14 @@ end
 
 ################################################################################
 #
+#  Eveness
+#
+################################################################################
+
+iseven(L::ZLat) = isintegral(L) && iseven(numerator(norm(L)))
+
+################################################################################
+#
 #  Discriminant
 #
 ################################################################################
@@ -511,6 +612,26 @@ end
 function discriminant(L::ZLat)
   d = det(gram_matrix(L))
   return d
+end
+
+################################################################################
+#
+#  Determinant
+#
+################################################################################
+
+function determinant(L::ZLat)
+  return det(gram_matrix(L))
+end
+
+################################################################################
+#
+#  Rank
+#
+################################################################################
+
+function rank(L::ZLat)
+  return nrows(basis_matrix(L))
 end
 
 ################################################################################
@@ -694,7 +815,7 @@ function Base.:(==)(L1::ZLat, L2::ZLat)
   V1 = ambient_space(L1)
   V2 = ambient_space(L2)
   if V1 != V2
-    return False
+    return false
   end
   B1 = basis_matrix(L1)
   B2 = basis_matrix(L2)
@@ -716,7 +837,7 @@ INPUT:
 OUTPUT:
 
 an integral lattice `M'` in the ambient space of `M` such that `M` and `M'` are locally equal at all
-completions except at `p` where `M'` is locally equivalent to the lattice `L`.
+completions except at `p` where `M'` is locally isometric to the lattice `L`.
 """
 function local_modification(M::ZLat, L::ZLat, p)
   # notation
@@ -724,7 +845,7 @@ function local_modification(M::ZLat, L::ZLat, p)
   level = valuation(d,p)
   d = p^(level+1) # +1 since scale(M) <= 1/2 ZZ
 
-  @req isequivalent(L.space, M.space,p) "quadratic spaces must be locally isometric at m"
+  @req isisometric(L.space, M.space, p) "quadratic spaces must be locally isometric at m"
   L_max = maximal_integral_lattice(L)
 
   # invert the gerstein operations
@@ -739,6 +860,100 @@ function local_modification(M::ZLat, L::ZLat, p)
   # the local modification
   S = intersect(Lp, M) + d * M
   # confirm result
-  @hassert genus(S, p)==genus(L, p)
+  @hassert :Lattice 2 genus(S, p)==genus(L, p)
   return S
+end
+
+################################################################################
+#
+#  Kernel lattice
+#
+################################################################################
+
+@doc Markdown.doc"""
+    kernel_lattice(L::ZLat, f::MatElem;
+                   ambient_representation::Bool = true) -> ZLat
+
+Given a $\mathbf{Z}$-lattice $L$ and a matrix $f$ inducing an endomorphism of
+$L$, return $\ker(f)$ is a sublattice of $L$.
+
+If `ambient_representation` is `true` (the default), the endomorphism is
+represented with respect to the ambient space of $L$. Otherwise, the
+endomorphism is represented with respect to the basis of $L$.
+"""
+function kernel_lattice(L::ZLat, f::MatElem; ambient_representation::Bool = true)
+  bL = basis_matrix(L)
+  if ambient_representation
+    if !issquare(bL)
+      fl, finL = can_solve_with_solution(bL, bL * f, side = :left)
+    else
+      finL = bL * f * inv(bL)
+    end
+  else
+    finL = f
+  end
+  k, K = left_kernel(change_base_ring(ZZ, finL))
+  return lattice(ambient_space(L), K * basis_matrix(L))
+end
+
+################################################################################
+#
+#  Invariant lattice
+#
+################################################################################
+
+@doc Markdown.doc"""
+    invariant_lattice(L::ZLat, G::Vector{MatElem};
+                      ambient_representation::Bool = true) -> ZLat
+
+Given a $\mathbf{Z}$-lattice $L$ and a list of matrices $G$ inducing
+endomorphisms of $L$, return the lattice $L^G$, consisting of elements fixed by
+$G$.
+
+If `ambient_representation` is `true` (the default), the endomorphism is
+represented with respect to the ambient space of $L$. Otherwise, the
+endomorphism is represented with respect to the basis of $L$.
+"""
+function invariant_lattice(L::ZLat, G::Vector{<:MatElem};
+                           ambient_representation::Bool = true)
+  if length(G) == 0
+    return L
+  end
+
+  M = kernel_lattice(L, G[1] - 1,
+                     ambient_representation = ambient_representation)
+  for i in 2:length(G)
+    N = kernel_lattice(L, G[i] - 1,
+                       ambient_representation = ambient_representation)
+    M = intersect(M, N)
+  end
+  return M
+end
+
+function invariant_lattice(L::ZLat, G::MatElem;
+                           ambient_representation::Bool = true)
+  return kernel_lattice(L, G - 1, ambient_representation = ambient_representation)
+end
+
+################################################################################
+#
+#  Membership check
+#
+################################################################################
+
+@doc Markdown.doc"""
+    Base.in(v::Vector, L::ZLat) -> Bool
+
+
+  This function checks if the vector 'v' lies in the lattice 'L' or not.
+"""
+function Base.in(v::Vector, L::ZLat)
+  @assert size(v)[1]==rank(L) "The vector should have the same length as the rank of the lattice."
+  B = basis_matrix(L)
+  V = matrix(QQ, size(v)[1], 1, v)
+  if !isone(denominator(V)) || !can_solve(B, V)
+    return false
+  else
+    return true
+  end
 end

@@ -1,4 +1,4 @@
-# Basics 
+# Basics
 ```@meta
 CurrentModule = Hecke
 ```
@@ -16,7 +16,6 @@ quadratic_space(::NumField, ::MatElem)
 rank(::AbsSpace)
 dim(::AbsSpace)
 gram_matrix(::AbsSpace)
-base_field(::AbsSpace)
 involution(::AbsSpace)
 isregular(::AbsSpace)
 det(::AbsSpace)
@@ -37,7 +36,7 @@ diagonal(::AbsSpace)
 ```@docs
 hasse_invariant(::QuadSpace, p)
 witt_invariant(::QuadSpace, p)
-isequivalent(::AbsSpace, ::AbsSpace, p)
+isisometric(::AbsSpace, ::AbsSpace, p)
 invariants(::QuadSpace)
-isequivalent(::QuadSpace, ::QuadSpace)
+isisometric(::QuadSpace, ::QuadSpace)
 ```

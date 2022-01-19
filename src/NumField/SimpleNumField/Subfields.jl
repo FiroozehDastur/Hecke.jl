@@ -110,13 +110,13 @@ function _get_sfpoly(Kx, M)
   end
   null_mat = zero_matrix(k, n, 0)
   for i in 1:length(ar_basis)
-    null_mat = hcat(null_mat,representation_matrix(ar_basis[i])'[:,1:my])
+    null_mat = hcat(null_mat,transpose(representation_matrix(ar_basis[i]))[:,1:my])
   end
   temp = zero_matrix(k,n,1)
   temp[my+1,1] = one(k)
   null_mat = hcat(null_mat,temp)
   mat_poly = nullspace(null_mat)[2]
-  ar_coeff = Array{elem_type(K),1}(undef,my)
+  ar_coeff = Vector{elem_type(K)}(undef,my)
   for i = 1:my
     indx = 1
     temp_coeff = K(0)
@@ -235,7 +235,7 @@ function _all_subfields(K, S::Vector{T}, len::Int = -1) where {T}
 end
 
 #Hilfsfunktion for _all_subfields
-function _next_subfields(ListSubfields, Kx, S::Vector{T}, L::T, e::Array{Int,1}, s::Int, sf_ar, len::Int) where {T}
+function _next_subfields(ListSubfields, Kx, S::Vector{T}, L::T, e::Vector{Int}, s::Int, sf_ar, len::Int) where {T}
   i = s + 1
   while i <= length(S)
     if e[i] == 0
@@ -310,6 +310,23 @@ function subfields(K::SimpleNumField; degree::Int = -1)
   if degree == n
     return Tuple{T, morphism_type(T)}[(K, id_hom(K))]
   end
+
+  if isprime(n)
+    res = Tuple{T, morphism_type(T)}[]
+    if degree == n
+      push!(res, (K, id_hom(K)))
+    elseif degree == 1
+      kt, t = PolynomialRing(k, "t", cached = false)
+      k_as_field = number_field(t-1, check = false, cached = false)[1]
+      push!(res, (k_as_field, hom(k_as_field, K, one(K))))
+    elseif degree == -1
+      kt, t = PolynomialRing(k, "t", cached = false)
+      k_as_field = number_field(t-1, check = false, cached = false)[1]
+      push!(res, (K, id_hom(K)))
+      push!(res, (k_as_field, hom(k_as_field, K, one(K))))
+    end
+    return res
+  end
   princ_subfields = _principal_subfields_basis(K)
   gg = _generating_subfields(princ_subfields)
   sf_asmat_ar = _all_subfields(K, gg, degree)
@@ -321,7 +338,7 @@ function subfields(K::SimpleNumField; degree::Int = -1)
     #sf_mat = transpose(sf_mat)
     #sf_mat_f = FakeFmpqMat(sf_mat)#
     sf_mat_f = sf_mat
-    basis_ar = Array{elem_type(K),1}(undef, nrows(sf_mat_f))
+    basis_ar = Vector{elem_type(K)}(undef, nrows(sf_mat_f))
     for i in 1:nrows(sf_mat_f)
       if K isa NumField{fmpq}
         _t = FakeFmpqMat(sf_mat_f)
@@ -337,10 +354,9 @@ function subfields(K::SimpleNumField; degree::Int = -1)
 end
 
 # TODO: Write a dedicated function for the normal case and use the subgroup functions
-
-function subfields_normal(K::SimpleNumField, classes::Bool = true)
+function subfields_normal(K::SimpleNumField, classes::Bool = false)
   G, mG = automorphism_group(K)
-  subs = subgroups(G, conjugacy_classes = true)
+  subs = subgroups(G, conjugacy_classes = classes)
   res = Vector{Tuple{typeof(K), morphism_type(typeof(K))}}()
   for (i, (H, mH)) in enumerate(subs)
     auts = morphism_type(typeof(K))[ mG(mH(h)) for h in H ]

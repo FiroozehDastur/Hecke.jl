@@ -120,7 +120,7 @@ function _zero_algebra(R::Ring)
   return A
 end
 
-function AlgAss(R::Ring, mult_table::Array{T, 3}, one::Array{T, 1}) where {T}
+function AlgAss(R::Ring, mult_table::Array{T, 3}, one::Vector{T}) where {T}
   if size(mult_table, 1) == 0
     return _zero_algebra(R)
   end
@@ -142,7 +142,7 @@ function AlgAss(R::Ring, mult_table::Array{T, 3}) where {T}
   return A
 end
 
-function AlgAss(R::Ring, d::Int, arr::Array{T, 1}) where {T}
+function AlgAss(R::Ring, d::Int, arr::Vector{T}) where {T}
   if d == 0
     return _zero_algebra(R)
   end
@@ -164,7 +164,7 @@ function AlgAss(f::PolyElem)
   n = degree(f)
   Rx = parent(f)
   x = gen(Rx)
-  B = Array{elem_type(Rx), 1}(undef, 2*n - 1)
+  B = Vector{elem_type(Rx)}(undef, 2*n - 1)
   B[1] = Rx(1)
   for i = 2:2*n - 1
     B[i] = mod(B[i - 1]*x, f)
@@ -220,9 +220,9 @@ constructs $O/I$ as an algebra over $\mathbb F_p$ together with the projection
 map $O \to O/I$.
 It is assumed that $p$ is prime.
 """
-quo(O::Union{NfAbsOrd, AlgAssAbsOrd}, I::Union{NfAbsOrdIdl, AlgAssAbsOrdIdl}, p::Union{Integer, fmpz}) = AlgAss(O, I, p)
+quo(O::Union{NfAbsOrd, AlgAssAbsOrd}, I::Union{NfAbsOrdIdl, AlgAssAbsOrdIdl}, p::IntegerUnion) = AlgAss(O, I, p)
 
-function AlgAss(O::Union{NfAbsOrd, AlgAssAbsOrd}, I::Union{NfAbsOrdIdl, AlgAssAbsOrdIdl}, p::Union{Integer, fmpz})
+function AlgAss(O::Union{NfAbsOrd, AlgAssAbsOrd}, I::Union{NfAbsOrdIdl, AlgAssAbsOrdIdl}, p::IntegerUnion)
   @assert order(I) === O
 
   n = degree(O)
@@ -301,7 +301,7 @@ function AlgAss(O::Union{NfAbsOrd, AlgAssAbsOrd}, I::Union{NfAbsOrdIdl, AlgAssAb
 
   let BO = BO, basis_elts = basis_elts, r = r
     function _preimage(a::AlgAssElem)
-      return sum(lift(coeffs(a, copy = false)[i])*BO[basis_elts[i]] for i = 1:r)
+      return sum(lift(coefficients(a, copy = false)[i])*BO[basis_elts[i]] for i = 1:r)
     end
   end
 
@@ -337,7 +337,7 @@ It is assumed that $p$ is prime.
 """
 quo(I::Union{ NfAbsOrdIdl, AlgAssAbsOrdIdl }, J::Union{ NfAbsOrdIdl, AlgAssAbsOrdIdl }, p::Union{ Integer, fmpz }) = AlgAss(I, J, p)
 
-function AlgAss(I::Union{ NfAbsOrdIdl, AlgAssAbsOrdIdl }, J::Union{NfAbsOrdIdl, AlgAssAbsOrdIdl}, p::Union{Integer, fmpz})
+function AlgAss(I::Union{ NfAbsOrdIdl, AlgAssAbsOrdIdl }, J::Union{NfAbsOrdIdl, AlgAssAbsOrdIdl}, p::IntegerUnion)
   @assert order(I) === order(J)
 
   O = order(I)
@@ -425,7 +425,7 @@ function AlgAss(I::Union{ NfAbsOrdIdl, AlgAssAbsOrdIdl }, J::Union{NfAbsOrdIdl, 
 
   let BI = BI, basis_elts = basis_elts, r = r
     function _preimage(a::AlgAssElem)
-      return O(sum(lift(coeffs(a, copy = false)[i])*BI[basis_elts[i]] for i = 1:r))
+      return O(sum(lift(coefficients(a, copy = false)[i])*BI[basis_elts[i]] for i = 1:r))
     end
   end
 
@@ -518,7 +518,7 @@ function AlgAss(O::Union{ NfRelOrd{T, S}, AlgAssRelOrd{T, S} }, I::Union{ NfRelO
   tmp_matrix = zero_matrix(_base_ring(K), 1, degree(O))
 
   function _coeff(c)
-    cfcs = coeffs(c, copy = false)
+    cfcs = coefficients(c, copy = false)
     for i = 1:degree(O)
       tmp_matrix[1, i] = cfcs[i]
     end
@@ -674,7 +674,7 @@ function AlgAss(I::Union{ NfRelOrdIdl{T, S}, AlgAssRelOrdIdl{T, S} }, J::Union{ 
 
   function _coeff(c)
     for i = 1:degree(O)
-      tmp_matrix[1, i] = coeffs(c, copy = false)[i]
+      tmp_matrix[1, i] = coefficients(c, copy = false)[i]
     end
     return tmp_matrix*bmatinvI
   end
@@ -973,7 +973,7 @@ end
 
 function _assure_trace_basis(A::AlgAss{T}) where T
   if !isdefined(A, :trace_basis_elem)
-    A.trace_basis_elem = Array{T, 1}(undef, dim(A))
+    A.trace_basis_elem = Vector{T}(undef, dim(A))
     for i=1:length(A.trace_basis_elem)
       A.trace_basis_elem[i]=sum(multiplication_table(A, copy = false)[i,j,j] for j= 1:dim(A))
     end
@@ -1042,7 +1042,7 @@ function center(A::AlgAss{T}) where {T}
   # I concatenate the difference between the right and left representation matrices.
   _rep_for_center(M,A)
   k,B=nullspace(M)
-  res=Array{elem_type(A),1}(undef, k)
+  res=Vector{elem_type(A)}(undef, k)
   for i=1:k
     res[i]= A(T[B[j,i] for j=1:n])
   end
@@ -1109,7 +1109,7 @@ function _find_idempotent_via_non_squarefree_poly(A::AlgAss{T}, a::AlgAssElem{T}
 
   N = zero_matrix(base_ring(A), 0, 1)
   for i = 1:dim(bA)
-    N = vcat(N, matrix(base_ring(A), dim(bA), 1, coeffs(bA[i])))
+    N = vcat(N, matrix(base_ring(A), dim(bA), 1, coefficients(bA[i])))
   end
   MN = hcat(transpose(M), N)
   r = rref!(MN)
@@ -1165,7 +1165,7 @@ function _find_idempotent_via_squarefree_poly(A::AlgAss{T}, a::AlgAssElem{T}, mi
   B = AlgAss(mina)
   idemB = _extraction_of_idempotents(B, true)
 
-  e = dot(coeffs(idemB, copy = false), [ a^k for k = 0:(degree(mina) - 1) ])
+  e = dot(coefficients(idemB, copy = false), [ a^k for k = 0:(degree(mina) - 1) ])
   return e
 end
 
@@ -1253,8 +1253,8 @@ function _matrix_basis(A::AlgAss{T}, idempotents::Vector{S}) where { T, S }#<: U
     N6 = representation_matrix(xx, :left)
     N = hcat(N1, N2, N3, N4, N5, N6)
     NN = zero_matrix(base_ring(A), 4*dim(eAe), 1)
-    NN = vcat(NN, matrix(base_ring(A), dim(eAe), 1, coeffs(bb)))
-    NN = vcat(NN, matrix(base_ring(A), dim(eAe), 1, coeffs(aa)))
+    NN = vcat(NN, matrix(base_ring(A), dim(eAe), 1, coefficients(bb)))
+    NN = vcat(NN, matrix(base_ring(A), dim(eAe), 1, coefficients(aa)))
     b, yy = can_solve_with_solution(transpose(N), NN)
     @assert b
     y = m1(m2(eAe([ yy[i, 1] for i = 1:dim(eAe) ])))
@@ -1355,7 +1355,7 @@ Given a $\mathbb Q$-algebra $A$, this function returns `true` if $A$ splits
 over $\mathbb Q$ and `false` otherwise.
 """
 function issplit(A::AlgAss{fmpq})
-  O = Order(A, basis(A))
+  O = any_order(A)
   i = schur_index_at_real_plc(O)
   if i==2
     @vprint :AlgAssOrd 1 "Not split at the infinite prime\n"
@@ -1370,6 +1370,17 @@ function issplit(A::AlgAss{fmpq})
     end
   end
   return true
+end
+
+function issplit(A::AlgAss{nf_elem})
+  K = base_ring(A)
+  for p in infinite_places(K)
+    if !issplit(A, p)
+      return false
+    end
+  end
+  O1 = maximal_order(A)
+  return isone(discriminant(O1))
 end
 
 function issplit(A::AlgAss, P::InfPlc)

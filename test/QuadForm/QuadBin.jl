@@ -5,7 +5,7 @@
     C = [1,1,0,0,1,1,0,0,1,1,0,0,0,1,0,0,1,1,0,0,1,1,0,0,1,1]
     @test isdiscriminant.(A) == C
   end
-  
+
   @testset "Conductor" begin
     A = [5, 8, 12, 13, 17, 20, 21, 24, 28, 29, 32, 33, 37, 40, 41, 44, 45, 48,
          52, 53, 56, 57, 60, 61, 65, 68, 69, 72, 73, 76, 77, 80, 84, 85, 88,
@@ -68,11 +68,11 @@
   @testset "FundamentalDiscriminant" begin
     @test isfundamental_discriminant(12) == true
     @test isfundamental_discriminant(-12) == false
-    D =	[1, 5, 8, 12, 13, 17, 21, 24, 28, 29, 33, 37, 40, 41, 44, 53, 56, 57,
+    D = [1, 5, 8, 12, 13, 17, 21, 24, 28, 29, 33, 37, 40, 41, 44, 53, 56, 57,
          60, 61, 65, 69, 73, 76, 77, 85, 88, 89, 92, 93, 97, 101, 104, 105,
          109, 113, 120, 124, 129, 133, 136, 137]
     @test all(isfundamental_discriminant, D)
-    D =	map(x -> -x, [3, 4, 7, 8, 11, 15, 19, 20, 23, 24, 31, 35, 39, 40, 43,
+    D = map(x -> -x, [3, 4, 7, 8, 11, 15, 19, 20, 23, 24, 31, 35, 39, 40, 43,
                       47, 51, 52, 55, 56, 59, 67, 68, 71, 79, 83, 84, 87, 88,
                       91, 95, 103])
     @test all(isfundamental_discriminant, D)
@@ -156,9 +156,10 @@
     @test T == matrix(FlintZZ, 2, 2, [-1, 1, 0, -1])
     @test Hecke._buchmann_vollmer_action(f, T) == g
 
-    f = binary_quadratic_form(4, 4, 15)
-    g = binary_quadratic_form(4, -4, 15)
-    @test_broken isequivalent(f, g)
+    # TODO: We do not have equivalence for indefinite types :(
+    # f = binary_quadratic_form(4, 4, 15)
+    # g = binary_quadratic_form(4, -4, 15)
+    # isequivalent(f, g)
 
     f = binary_quadratic_form(33, 11, 5)
     #g = reduction(f)
@@ -184,6 +185,7 @@
     g = binary_quadratic_form(10, -120, 357)
     @test !isequivalent(f, g)
     @test !isequivalent(f, g, proper = false)
+
   end
 
   @testset "Automormorphism group" begin
@@ -192,6 +194,47 @@
     @test all(T -> Hecke._action(g, T) == g, gens)
     @assert all(T -> abs(det(T)) == 1, gens)
     @assert any(T -> det(T) == -1, gens) # g is ambiguous
+
+    g = binary_quadratic_form(0, 3, 0)
+    gens = automorphism_group_generators(g)
+    @test gens == [ZZ[-1 0;0 -1], ZZ[0 1; 1 0]]
+
+    g = binary_quadratic_form(-2, 1, 0)
+    gens = automorphism_group_generators(g)
+    @test gens == [ZZ[-1 0; 0 -1], ZZ[-2 1; -3 2]]
+
+    g = binary_quadratic_form(-4, 3, 0)
+    gens = automorphism_group_generators(g)
+    @test gens == [ZZ[-1 0;0 -1]]
+
+    g = binary_quadratic_form(1, 2, 0)
+    gens = automorphism_group_generators(g)
+    @test length(gens) == 2
+
+    g = binary_quadratic_form(0, 2, 1)
+    gens = automorphism_group_generators(g)
+    @test length(gens) == 2
+
+    f = binary_quadratic_form(0, -2, 4)
+    gens = automorphism_group_generators(f)
+    @test length(gens) == 2
+
+    f = binary_quadratic_form(-7, 15, 2)
+    gens = automorphism_group_generators(f)
+    @test length(gens) == 3
+    @test all(g -> Hecke._action(f, g) == f, gens)
+
+    f = binary_quadratic_form(-10, 8, 7)
+    gens = automorphism_group_generators(f)
+    @test length(gens) == 3
+    @test all(g -> Hecke._action(f, g) == f, gens)
+
+    f = binary_quadratic_form(-9, 9, 5)
+    gens = automorphism_group_generators(f)
+    @test length(gens) == 3
+    @test all(g -> Hecke._action(f, g) == f, gens)
+
+
   end
 
   @testset "Misc" begin
@@ -223,5 +266,101 @@
     @test isequivalent(f, g, proper = false)
     @test isequivalent(2 * f, 2 * f)
     @test !isequivalent(2 * f, 3 * f)
+    h = binary_quadratic_form(-2, 1, 0)
+    @test isreduced(Hecke.reduction(h))
+
+    f = binary_quadratic_form(0, -3, 1)
+    @test Hecke.reduction(f) == binary_quadratic_form(1, 3, 0)
+  end
+
+  @testset "Representatives" begin
+    # (-4)
+    # [x^2 + y^2]
+    #
+    # (-163)
+    # [x^2 + x*y + 41*y^2]
+    #
+    # (-12)
+    # [x^2 + 3*y^2, 2*x^2 + 2*x*y + 2*y^2]
+    #
+    # (-16)
+    # [x^2 + 4*y^2, 2*x^2 + 2*y^2]
+    #
+    # (-63)
+    # [x^2 + x*y + 16*y^2, 2*x^2 - x*y + 8*y^2, 2*x^2 + x*y + 8*y^2, 3*x^2 + 3*x*y + 6*y^2, 4*x^2 + x*y + 4*y^2]
+    #
+    # (-23*9)
+    # [x^2 + x*y + 52*y^2,
+    # 2*x^2 - x*y + 26*y^2,
+    # 2*x^2 + x*y + 26*y^2,
+    # 3*x^2 + 3*x*y + 18*y^2,
+    # 4*x^2 - x*y + 13*y^2,
+    # 4*x^2 + x*y + 13*y^2,
+    # 6*x^2 - 3*x*y + 9*y^2,
+    # 6*x^2 + 3*x*y + 9*y^2,
+    # 8*x^2 + 7*x*y + 8*y^2]
+    #
+    # (-23*9, primitive = true)
+    # [x^2 + x*y + 52*y^2,
+    # 2*x^2 - x*y + 26*y^2,
+    # 2*x^2 + x*y + 26*y^2,
+    # 4*x^2 - x*y + 13*y^2,
+    # 4*x^2 + x*y + 13*y^2,
+    # 8*x^2 + 7*x*y + 8*y^2]
+    Zx, (x, y) = ZZ["x", "y"]
+    poly_to_form(f) = binary_quadratic_form(coeff(f, x^2), coeff(f, x*y), coeff(f, y^2))
+    d = fmpz(73)
+    @test length(Hecke.binary_quadratic_form_representatives(d)) ==
+      length([4*x^2 + 3*x*y - 4*y^2])
+    d = fmpz(76)
+    @test length(Hecke.binary_quadratic_form_representatives(d, primitive = true)) ==
+      length([-3*x^2 + 4*x*y + 5*y^2,
+            3*x^2 + 4*x*y - 5*y^2])
+    d = fmpz(136)
+    @test length(Hecke.binary_quadratic_form_representatives(d)) ==
+      length([-5*x^2 + 4*x*y + 6*y^2,
+            -2*x^2 + 8*x*y + 9*y^2,
+            2*x^2 + 8*x*y - 9*y^2,
+            5*x^2 + 4*x*y - 6*y^2])
+    @test length(Hecke.binary_quadratic_form_representatives(d, proper = false)) ==
+      length([-2*x^2 + 8*x*y + 9*y^2, 2*x^2 + 8*x*y - 9*y^2, 5*x^2 + 4*x*y - 6*y^2])
+
+    d = fmpz(148)
+    @test length(Hecke.binary_quadratic_form_representatives(d, proper = false, primitive = false)) ==
+      length([x^2 + 12*x*y - y^2, 4*x^2 + 6*x*y - 7*y^2, 6*x^2 + 2*x*y - 6*y^2])
+    @test length(Hecke.binary_quadratic_form_representatives(d, proper = false, primitive = true)) ==
+      length([x^2 + 12*x*y - y^2, 4*x^2 + 6*x*y - 7*y^2])
+    @test length(Hecke.binary_quadratic_form_representatives(d, proper = true, primitive = true)) ==
+      length([-7*x^2 + 6*x*y + 4*y^2, x^2 + 12*x*y - y^2, 4*x^2 + 6*x*y - 7*y^2])
+    @test length(Hecke.binary_quadratic_form_representatives(d, proper = true, primitive = false)) ==
+      length([-7*x^2 + 6*x*y + 4*y^2,
+            x^2 + 12*x*y - y^2,
+            4*x^2 + 6*x*y - 7*y^2,
+            6*x^2 + 2*x*y - 6*y^2])
+    # (10^2, proper = false, primitive = false)
+    #        [-4*x^2 + 10*x*y,
+    #         -3*x^2 + 10*x*y,
+    #         -2*x^2 + 10*x*y,
+    #         -x^2 + 10*x*y,
+    #         10*x*y,
+    #         x^2 + 10*x*y,
+    #         2*x^2 + 10*x*y,
+    #         5*x^2 + 10*x*y]
+    #
+    # (10^2, proper = false, primitive = true)
+    #        [-3*x^2 + 10*x*y, -x^2 + 10*x*y, x^2 + 10*x*y]
+    # (10^2, proper = true, primitive = true)
+    #        [-3*x^2 + 10*x*y, -x^2 + 10*x*y, x^2 + 10*x*y, 3*x^2 + 10*x*y]
+    # (10^2, proper = true, primitive = false)
+    #        [-4*x^2 + 10*x*y,
+    #         -3*x^2 + 10*x*y,
+    #         -2*x^2 + 10*x*y,
+    #         -x^2 + 10*x*y,
+    #         10*x*y,
+    #         x^2 + 10*x*y,
+    #         2*x^2 + 10*x*y,
+    #         3*x^2 + 10*x*y,
+    #         4*x^2 + 10*x*y,
+    #         5*x^2 + 10*x*y]
   end
 end

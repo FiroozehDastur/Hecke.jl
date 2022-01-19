@@ -428,6 +428,18 @@
   @test Hecke._bernoulli_kronecker(1, -1) == -1//2
 end
 
+@testset "Minkowski bound" begin
+  # reference value, taken from http://oeis.org/A053657
+  ref = fmpz[2, 24, 48, 5760, 11520, 2903040, 5806080,
+             1393459200, 2786918400, 367873228800, 735746457600,
+             24103053950976000, 48206107901952000, 578473294823424000,
+             1156946589646848000, 9440684171518279680000,
+             18881368343036559360000, 271211974879377138647040000]
+
+  @test map(Hecke._minkowski_multiple, 1:18) == ref
+  @test map(n -> Hecke._minkowski_multiple(QQ, n), 1:18) == ref
+end
+
 @testset "Exact totally real Dedekind zeta functions" begin
   Qx, x = FlintQQ["x"]
   K, a = quadratic_field(5)
@@ -530,4 +542,12 @@ end
   p = prime_decomposition(base_ring(L), 2)[1][1]
   @test Hecke.local_factor(L, p) == fmpq(1)
   @test mass(L) == fmpq(1, 12)
+
+  Qx, x = PolynomialRing(FlintQQ, "x", cached = false)
+  f = x^2 - 2
+  K, a = number_field(f)
+  D = matrix(K, 2, 2, [3*a + 4, 9*a + 12, 9*a + 12, 36*a + 48])
+  gens = [[2, 0], [3*a + 2, 0], [0, 1//2], [0, 1//2]]
+  L = quadratic_lattice(K, generators = gens, gram_ambient_space = D)
+  @test mass(L) == 1//4
 end

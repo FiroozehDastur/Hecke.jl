@@ -221,17 +221,17 @@ end
     L = Zlattice(gram = G)
     X = _random_invertible_matrix(n, -3:3)
     @assert abs(det(X)) == 1
-    L2 = Zlattice(gram = X * G * X')
+    L2 = Zlattice(gram = X * G * transpose(X))
     b, T = isisometric(L, L2, ambient_representation = false)
     @test b
-    @test T * gram_matrix(L2) * T' == gram_matrix(L)
+    @test T * gram_matrix(L2) * transpose(T) == gram_matrix(L)
     L2 = Zlattice(X, gram = G)
     b, T = isisometric(L, L2, ambient_representation = false)
     @test b
-    @test T * gram_matrix(L2) * T' == gram_matrix(L)
+    @test T * gram_matrix(L2) * transpose(T) == gram_matrix(L)
     b, T = isisometric(L, L2, ambient_representation = true)
     @test b
-    @test T * gram_matrix(ambient_space(L2)) * T' ==
+    @test T * gram_matrix(ambient_space(L2)) * transpose(T) ==
     gram_matrix(ambient_space(L))
   end
 
@@ -243,10 +243,10 @@ end
     n = rank(L)
     X = change_base_ring(FlintQQ, _random_invertible_matrix(n, -3:3))
     @assert abs(det(X)) == 1
-    L2 = Zlattice(gram = X * gram_matrix(L) * X')
+    L2 = Zlattice(gram = X * gram_matrix(L) * transpose(X))
     b, T = isisometric(L, L2, ambient_representation = false)
     @test b
-    @test T * gram_matrix(L2) * T' == gram_matrix(L)
+    @test T * gram_matrix(L2) * transpose(T) == gram_matrix(L)
   end
 
   #discriminant of a lattice
@@ -314,4 +314,84 @@ end
   Ld = dual(L)
   @test issublattice(Ld,L)
   discriminant_group(L)
+
+  # Kernel lattice
+  L = root_lattice(:A, 2)
+  f = matrix(ZZ, 2, 2, [0, 1, 1, 0])
+  M = kernel_lattice(L, f - 1)
+  @test basis_matrix(M) == QQ[1 1;]
+  M = kernel_lattice(L, f - 1, ambient_representation = false)
+  @test basis_matrix(M) == QQ[1 1;]
+
+  f = matrix(QQ, 2, 2, [0, 1, 1, 0])
+  M = kernel_lattice(L, f - 1)
+  @test basis_matrix(M) == QQ[1 1;]
+  M = kernel_lattice(L, f - 1, ambient_representation = false)
+  @test basis_matrix(M) == QQ[1 1;]
+
+  L = Zlattice(QQ[1 0; 0 2])
+  f = matrix(QQ, 2, 2, [0, 1, 0, 0])
+  @test_throws ErrorException kernel_lattice(L, f)
+  M = kernel_lattice(L, f, ambient_representation = false)
+  @test basis_matrix(M) == QQ[0 2;]
+
+  L = root_lattice(:A, 2)
+  G = automorphism_group_generators(L)
+  N = invariant_lattice(L, G)
+  @test ambient_space(N) === ambient_space(L)
+  @test rank(N) == 0
+  @test basis_matrix(invariant_lattice(L, identity_matrix(QQ, 2))) == basis_matrix(L)
+  
+  randlist = rand(2:20,10)
+  L = [root_lattice(:D,i) for i in randlist]
+  @test any(l -> discriminant(l) == 4, L)
+  @test any(iseven, L)
+  @test any(l -> norm(l) == 2, L)
+
+  L = root_lattice(:D,3)
+  #Problem here: equality of lattices depends on 'strict' equality of their ambient
+  #space, as julia object!
+  @test gram_matrix(L) == gram_matrix(root_lattice(:A,3)) 
+  
+  L = root_lattice(:D,4)
+  @test norm(L) == 2
+  @test automorphism_group_order(L) == 1152
+
+  L = root_lattice(:E,6)
+  @test discriminant(L) == 3
+  @test iseven(L)
+  @test norm(L) == 2
+  @test Hecke.kissing_number(L) == 72
+
+  L = root_lattice(:E,7)
+  @test discriminant(L) == 2
+  @test iseven(L)
+  @test norm(L) == 2
+  @test Hecke.kissing_number(L) == 126
+
+  L = root_lattice(:E, 8)
+  @test discriminant(L) == 1
+  @test iseven(L)
+  @test norm(L) == 2
+  @test norm(L) == 2 # tests caching
+
+  q = quadratic_space(QQ, QQ[2 1; 1 2])
+  L = lattice(q, QQ[0 0; 0 0], isbasis = false)
+  g = automorphism_group_generators(L)
+  @test rank(L) == 0
+  @test g == [identity_matrix(QQ, 2)]
+
+  # membership check
+  G = QQ[1 0 0 0; 0 2 0 0; 0 0 17 0; 0 0 0 6]
+  V = quadratic_space(QQ, G)
+  B = QQ[2 0 0 0; 1 1 0 0; 1 0 1 0; 1//2 1//4 1//2 1//4]
+  L = lattice(V, B)
+  x1 = [27//11, 1, 1//7, 2]
+  x2 = [2//1, 14//2, 5//1, 9//3]
+  x3 = [4, 5, 11, 9]
+  x4 = [2, 1, 0, 1, 2]
+  @test !(x1 in L)
+  @test x2 in L
+  @test x3 in L
+  @test_throws AssertionError x4 in L
 end

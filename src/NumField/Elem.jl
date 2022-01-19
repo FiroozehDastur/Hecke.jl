@@ -23,7 +23,7 @@ dot(x::Integer, y::NumFieldElem) = x * y
 
 dot(x::NumFieldElem, y::Integer) = x * y
 
-function dot(a::Array{<: NumFieldElem, 1}, b::Array{fmpz, 1})
+function dot(a::Vector{<: NumFieldElem}, b::Vector{fmpz})
   d = zero(parent(a[1]))
   t = zero(d)
   for i=1:length(a)
@@ -52,12 +52,7 @@ end
 #
 ################################################################################
 
-@doc Markdown.doc"""
-    parent(a::NumFieldElem) -> NumField
-
-Given an element `a` of a number field $K$, this function returns $K$.
-"""
-parent(a::NumFieldElem)
+# Covered by the general ring interface
 
 ################################################################################
 #
@@ -67,15 +62,20 @@ parent(a::NumFieldElem)
 
 isintegral(a::fmpq) = isone(denominator(a))
 
-@doc Markdown.doc"""
+@doc doc"""
     isintegral(a::NumFieldElem) -> Bool
 
 Returns whether $a$ is integral, that is, whether the minimal polynomial of $a$
 has integral coefficients.
 """
 function isintegral(a::NumFieldElem)
+  K = parent(a)
+  if ismaximal_order_known(K)
+    OK = maximal_order(K)
+    return a in OK
+  end
   f = minpoly(a)
-  for i = 0:(degree(f) - 1)
+  for i in 0:(degree(f) - 1)
     if !isintegral(coeff(f, i))
       return false
     end
@@ -91,7 +91,7 @@ end
 
 ## rand(::Vector{NumFieldElem}, ::UnitRange)
 
-@doc Markdown.doc"""
+@doc doc"""
     rand([rng::AbstractRNG], b::Vector{NumFieldElem}, r::UnitRange) -> NumFieldElem
     rand([rng::AbstractRNG], make(F::NumField, b::Vector{NumFieldElem}, r::UnitRange)) -> NumFieldElem
 
@@ -113,7 +113,7 @@ end
 
 ## rand(::Vector{<: NumFieldElem}, ::UnitRange, ::Int)
 
-@doc Markdown.doc"""
+@doc doc"""
     rand([rng::AbstractRNG], b::Vector{NumFieldElem}, r::UnitRange, terms::Int) -> NumFieldElem
     rand([rng::AbstractRNG],
          make(F::NumField, b::Vector{NumFieldElem}, r::UnitRange, terms::Int)) -> NumFieldElem
@@ -139,7 +139,7 @@ end
 
 ## rand!(::NumFieldElem, ::Vector{NumFieldElem}, ::UnitRange, terms::Int)
 
-@doc Markdown.doc"""
+@doc doc"""
     rand!([rng::AbstractRNG], c::NumFieldElem, b::Vector{NumFieldElem},
           r::UnitRange, terms::Int) -> NumFieldElem
     rand!([rng::AbstractRNG], c::NumFieldElem,
@@ -180,7 +180,7 @@ end
 
 ## rand!(::NumFieldElem, ::Vector{NumFieldElem}, ::UnitRange)
 
-@doc Markdown.doc"""
+@doc doc"""
     rand!(c::NumFieldElem, b::Vector{NumFieldElem}, r::UnitRange) -> NumFieldElem
     rand!(c::NumFieldElem, make(F::NumField, b::Vector{NumFieldElem}, r::UnitRange)) -> NumFieldElem
 
@@ -223,13 +223,13 @@ end
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     basis_matrix(v::Vector{NumFieldElem}) -> Mat
 
 Given a vector $v$ of $n$ elements of a number field $K$ of degree $d$, this
-function returns an $n x d$ matrix with entries in the base field of $K$,
- where row $i$ contains the > coefficients of $v[i]$ with respect of the
-canonical basis of $K$.
+function returns an $n x d$ matrix with entries in the base field of $K$, where
+row $i$ contains the coefficients of $v[i]$ with respect of the canonical
+basis of $K$.
 """
 basis_matrix(v::Vector{<: NumFieldElem})
 
@@ -239,7 +239,7 @@ basis_matrix(v::Vector{<: NumFieldElem})
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     charpoly(a::NumFieldElem) -> PolyElem
 
 Given a number field element $a$ of a number field $K$, this function returns
@@ -247,7 +247,7 @@ the characteristic polynomial of $a$ over the base field of $K$.
 """
 charpoly(::NumFieldElem)
 
-@doc Markdown.doc"""
+@doc doc"""
     absolute_charpoly(a::NumFieldElem) -> PolyElem
 
 Given a number field element $a$ of a number field $K$, this function returns
@@ -255,7 +255,7 @@ the characteristic polynomial of $a$ over the rationals $\mathbf{Q}$.
 """
 absolute_charpoly(::NumFieldElem)
 
-@doc Markdown.doc"""
+@doc doc"""
     minpoly(a::NumFieldElem) -> PolyElem
 
 Given a number field element $a$ of a number field $K$, this function returns
@@ -263,7 +263,7 @@ the minimal polynomial of $a$ over the base field of $K$.
 """
 minpoly(::NumFieldElem)
 
-@doc Markdown.doc"""
+@doc doc"""
     absolute_minpoly(a::NumFieldElem) -> PolyElem
 
 Given a number field element $a$ of a number field $K$, this function returns
@@ -309,7 +309,7 @@ end
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     coeff(a::SimpleNumFieldElem, i::Int) -> FieldElem
 
 Given a number field element `a` of a simple number field extension `L/K`, this
@@ -318,20 +318,20 @@ power basis of `L`. The result is an element of `K`.
 """
 coeff(::SimpleNumFieldElem, ::Int)
 
-# copy does not do anything (so far), this is only for compatibility with coeffs(::AbsAlgAssElem)
+# copy does not do anything (so far), this is only for compatibility with coefficients(::AbsAlgAssElem)
 
-@doc Markdown.doc"""
-    coeffs(a::SimpleNumFieldElem, i::Int) -> Vector{FieldElem}
+@doc doc"""
+    coefficients(a::SimpleNumFieldElem, i::Int) -> Vector{FieldElem}
 
 Given a number field element `a` of a simple number field extension `L/K`, this
 function returns the coefficients of `a`, when expanded in the canonical
 power basis of `L`.
 """
-function coeffs(a::SimpleNumFieldElem; copy::Bool = false)
+function coefficients(a::SimpleNumFieldElem; copy::Bool = false)
   return [ coeff(a, i) for i = 0:degree(parent(a)) - 1 ]
 end
 
-@doc Markdown.doc"""
+@doc doc"""
     (L::SimpleNumField)(c::Vector) -> SimpleNumFieldElem
 
 Given a simple number field extension `L/K` and a vector of elements that are
@@ -371,7 +371,7 @@ end
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     tr(a::NumFieldElem) -> NumFieldElem
 
 Returns the trace of an element $a$ of a number field extension $L/K$. This
@@ -379,7 +379,7 @@ will be an element of $K$.
 """
 tr(::NumFieldElem)
 
-@doc Markdown.doc"""
+@doc doc"""
     norm(a::NumFieldElem) -> NumFieldElem
 
 Returns the norm of an element $a$ of a number field extension $L/K$. This
@@ -406,7 +406,7 @@ function _elem_norm_to(a, k::T) where {T}
   end
 end
 
-@doc Markdown.doc"""
+@doc doc"""
     tr(a::NumFieldElem, k::NumField) -> NumFieldElem
 
 Returns the trace of an element $a$ of a number field $L$ with respect to
@@ -418,7 +418,7 @@ end
 
 tr(a::NumFieldElem, ::FlintRationalField) = _elem_tr_to(a, FlintQQ)
 
-@doc Markdown.doc"""
+@doc doc"""
     norm(a::NumFieldElem, k::NumField) -> NumFieldElem
 
 Returns the norm of an element $a$ of a number field $L$ with respect to
@@ -430,7 +430,7 @@ end
 
 norm(a::NumFieldElem, ::FlintRationalField) = _elem_norm_to(a, FlintQQ)
 
-@doc Markdown.doc"""
+@doc doc"""
     absolute_tr(a::NumFieldElem) -> fmpq
 
 Given a number field element $a$, returns the absolute trace of $a$.
@@ -445,7 +445,7 @@ absolute_tr(a::NfAbsNSElem) = tr(a)
 
 absolute_tr(x::fmpq) = x
 
-@doc Markdown.doc"""
+@doc doc"""
     absolute_norm(a::NumFieldElem) -> fmpq
 
 Given a number field element $a$, returns the absolute norm of $a$.
@@ -464,7 +464,7 @@ absolute_norm(a::fmpq) = a
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     norm(f::PolyElem{<:NumFieldElem}) -> PolyElem
 
 Returns the norm of $f$, that is, the product of all conjugates of $f$ taken
@@ -486,6 +486,8 @@ end
 
 norm(a::fmpq_poly) = a
 
+absolute_norm(a::fmpq_poly) = a
+
 function absolute_norm(f::PolyElem{nf_elem})
   return norm(f)
 end
@@ -504,9 +506,9 @@ function AbstractAlgebra.factor(f::PolyElem{<: NumFieldElem})
   K = base_ring(f)
   Ka, mKa = absolute_simple_field(K)
 
-  fKa = map_coeffs(inv(mKa), f)
+  fKa = map_coefficients(inv(mKa), f)
   lf = factor(fKa)
-  res = Fac(map_coeffs(mKa, lf.unit, parent = parent(f)), Dict(map_coeffs(mKa, k, parent = parent(f)) => v for (k,v) = lf.fac))
+  res = Fac(map_coefficients(mKa, lf.unit, parent = parent(f)), Dict(map_coefficients(mKa, k, parent = parent(f)) => v for (k,v) = lf.fac))
 
   return res
 end
@@ -524,7 +526,7 @@ end
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     representation_matrix(a::NumFieldElem) -> MatElem
 
 Returns the representation matrix of $a$, that is, the matrix representing
@@ -538,7 +540,7 @@ representation_matrix(a::NumFieldElem)
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     gen(L::SimpleNumField) -> NumFieldElem
 
 Given a simple number field $L = K[x]/(x)$ over $K$, this functions returns the
@@ -546,7 +548,7 @@ class of $x$, which is the canonical primitive element of $L$ over $K$.
 """
 gen(::SimpleNumField)
 
-@doc Markdown.doc"""
+@doc doc"""
     gens(L::NonSimpleNumField) -> Vector{NumFieldElem}
 
 Given a non-simple number field $L = K[x_1,\dotsc,x_n]/(f_1,\dotsc,f_n)$ over
@@ -560,7 +562,7 @@ gens(::NonSimpleNumField)
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     coordinates(x::NumFieldElem{T}) -> Vector{T}
 
 Given an element $x$ in a number field $K$, this function returns the coordinates of $x$
@@ -621,7 +623,7 @@ end
 #
 ################################################################################
 
-@doc Markdown.doc"""
+@doc doc"""
     absolute_coordinates(x::NumFieldElem{T}) -> Vector{T}
 
 Given an element $x$ in a number field $K$, this function returns the coordinates of $x$
@@ -629,11 +631,7 @@ with respect to the basis of $K$ over the rationals (the output of the 'absolute
 """
 absolute_coordinates(::NumFieldElem)
 
-function absolute_coordinates(a::nf_elem)
-  return coordinates(a)
-end
-
-function absolute_coordinates(a::NfAbsNSElem)
+function absolute_coordinates(a::NumFieldElem{fmpq})
   return coordinates(a)
 end
 
@@ -651,3 +649,68 @@ function absolute_coordinates(a::T) where T <: Union{NfRelElem, NfRelNSElem}
   end
   return v
 end
+
+################################################################################
+#
+#  Denominator
+#
+################################################################################
+
+function denominator!(z::fmpz, a::nf_elem)
+   ccall((:nf_elem_get_den, libantic), Nothing,
+         (Ref{fmpz}, Ref{nf_elem}, Ref{AnticNumberField}),
+         z, a, a.parent)
+   return z
+end
+
+################################################################################
+#
+#  Valuation
+#
+################################################################################
+
+@doc Markdown.doc"""
+    valuation(a::NumFieldElem, p::NfOrdIdl) -> fmpz
+
+Computes the $\mathfrak p$-adic valuation of $a$, that is, the largest $i$
+such that $a$ is contained in $\mathfrak p^i$.
+"""
+function valuation(::NumFieldElem, p) end
+
+################################################################################
+#
+#   Support
+#
+################################################################################
+
+function support(a::NumFieldElem{fmpq}, R::NfAbsOrd = maximal_order(parent(a)))
+  @assert nf(R) == parent(a)
+  return support(a * R)
+end
+
+function support(a::NumFieldElem, R::NfRelOrd = maximal_order(parent(a)))
+  @assert nf(R) == parent(a)
+  return support(a * R)
+end
+
+################################################################################
+#
+#   Absolute minpoly
+#
+################################################################################
+
+function minpoly(a::T, ::FlintRationalField) where T <: Union{NfRelNSElem, NfRelElem}
+  f = minpoly(a)
+  n = absolute_norm(f)
+  g = gcd(n, derivative(n))
+  if isone(g)
+    return n
+  end
+  n = divexact(n, g)
+  return n
+end
+
+absolute_minpoly(a::nf_elem) = minpoly(a)
+absolute_minpoly(a::NfAbsNS) = minpoly(a)
+
+absolute_minpoly(a::T) where T <: Union{NfRelNSElem, NfRelElem} = minpoly(a, FlintQQ)

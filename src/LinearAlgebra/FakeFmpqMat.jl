@@ -6,6 +6,8 @@
 
 iszero(x::FakeFmpqMat) = iszero(x.num)
 
+issquare(x::FakeFmpqMat) = issquare(numerator(x))
+
 function numerator(x::FakeFmpqMat; copy::Bool = true)
   if copy
     return deepcopy(x.num)
@@ -29,7 +31,7 @@ ncols(x::FakeFmpqMat) = ncols(x.num)
 function simplify_content!(x::FakeFmpqMat)
   c = content(x.num)
   gcd!(c, c, x.den)
-  if !isone(c) 
+  if !isone(c)
     divexact!(x.num, x.num, c)
     divexact!(x.den, x.den, c)
   end
@@ -81,10 +83,10 @@ function -(x::FakeFmpqMat)
   return FakeFmpqMat(-x.num, x.den, true)
 end
 
-#TODO: may be possible to simplify more efficiently. 
+#TODO: may be possible to simplify more efficiently.
 #The content of the numerator of the inverse may be non trivial!
 function inv(x::FakeFmpqMat)
-  i, d_i = pseudo_inv(x.num) 
+  i, d_i = pseudo_inv(x.num)
   g = gcd(d_i, x.den)
   if isone(g)
     return FakeFmpqMat(i * x.den, d_i)
@@ -118,6 +120,9 @@ function *(x::FakeFmpqMat, y::FakeFmpqMat)
 end
 
 function mul!(z::FakeFmpqMat, x::FakeFmpqMat, y::FakeFmpqMat)
+  @req ncols(x) == nrows(y) "Wrong dimensions"
+  @req nrows(z) == nrows(x) "Wrong dimensions"
+  @req ncols(z) == ncols(y) "Wrong dimensions"
   mul!(z.num, x.num, y.num)
   mul!(z.den, x.den, y.den)
   simplify_content!(z)
@@ -243,7 +248,7 @@ function hnf!(x::FakeFmpqMat, shape = :lowerleft)
   return x
 end
 
-function hnf(x::FakeFmpqMat, shape = :lowerleft; triangular_top::Bool = false)
+function hnf(x::FakeFmpqMat, shape = :lowerleft; triangular_top::Bool = false, compute_det::Bool = false)
   if triangular_top
     @assert ncols(x) <= nrows(x)
     z = one(FlintZZ)
@@ -253,12 +258,20 @@ function hnf(x::FakeFmpqMat, shape = :lowerleft; triangular_top::Bool = false)
       end
     end
     for i in 1:ncols(x)
-      z = lcm(z, x.num[i, i])
+      z = mul!(z, z, x.num[i, i])
     end
     h = _hnf_modular_eldiv(x.num, z, shape)
+  elseif compute_det
+    d = det(numerator(x))
+    h = _hnf_modular_eldiv(x.num, d, shape)
   else
     h = _hnf(x.num, shape)
   end
+  return FakeFmpqMat(h, denominator(x))
+end
+
+function hnf_modular_eldiv(x::FakeFmpqMat, g::fmpz, shape = :lowerleft)
+  h = _hnf_modular_eldiv(x.num, g, shape)
   return FakeFmpqMat(h, denominator(x))
 end
 
@@ -314,7 +327,7 @@ end
 
 function det(x::FakeFmpqMat)
   nrows(x) != ncols(x) && error("Matrix must be square")
-  
+
   return det(x.num)//(x.den)^nrows(x)
 end
 
@@ -339,6 +352,21 @@ function vcat(M::FakeFmpqMat, N::FakeFmpqMat)
   M1 = numerator(M, copy = false)*d2
   N1 = numerator(N, copy = false)*d1
   return FakeFmpqMat(vcat(M1, N1), g*d1*d2)
+end
+
+function reduce(::typeof(vcat), A::Vector{FakeFmpqMat})
+  if length(A) == 1
+    return A[1]
+  end
+
+  d = reduce(lcm, (denominator(a) for a in A), init = fmpz(1))
+  res = zero_matrix(FlintZZ, sum(nrows, A), ncols(A[1]))
+  k = 1
+  for i in 1:length(A)
+    _copy_matrix_into_matrix(res, k, 1, divexact(d, denominator(A[i])) * numerator(A[i], copy = false))
+    k += nrows(A[i])
+  end
+  return FakeFmpqMat(res, d)
 end
 
 function hcat(M::FakeFmpqMat, N::FakeFmpqMat)

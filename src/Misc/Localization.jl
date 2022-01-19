@@ -1,5 +1,3 @@
-show_minus_one(::Type{LocElem{NfOrdIdl}}) = true
-
 ###############################################################################
 #
 #   Random Functions
@@ -15,3 +13,6 @@ function rand(L::Loc{T}, num_scale = (1:1000), den_scale=(1:1000)) where {T <: f
    end
    return L(num//den)
 end
+
+Nemo.promote_rule(::Type{LocElem{T}}, ::Type{T}) where {T} = LocElem{T}
+

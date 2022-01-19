@@ -42,13 +42,13 @@
   L2 = number_field(H, using_stark_units = true, redo = true)
   @test isisomorphic(Hecke.simplified_absolute_field(L1)[1], Hecke.simplified_absolute_field(L2)[1])[1]
   @test length(closure(Hecke.absolute_automorphism_group(H), *)) == 10
-  
+
   r, mr = Hecke.ray_class_groupQQ(Z, 32, true, 8);
   q, mq = quo(r, [r[1]])
   C = ray_class_field(mr, mq)
   KC = number_field(C)
   auts = Hecke.rel_auto(C)
-  @test length(closure(auts, *)) == 8 
+  @test length(closure(auts, *)) == 8
 
   k, a = wildanger_field(3, 13)
   zk = maximal_order(k)
@@ -56,7 +56,7 @@
   @test degree(r0) == 9
   r1 = ray_class_field(4*zk, n_quo = 2)
   r2 = ray_class_field(5*zk, n_quo = 2)
-  @test isone(conductor(intersect(r1, r2))[1]) 
+  @test isone(conductor(intersect(r1, r2))[1])
   @test conductor(r1 * r2)[1] == 20*zk
   @test Hecke.issubfield(r1, r1*r2)
   @test !Hecke.issubfield(r0, r1*r2)
@@ -88,7 +88,7 @@
   K, _ = compositum(k, wildanger_field(3, 13)[1])
   A = maximal_abelian_subfield(ClassField, K)
   @test degree(A) == 2
-  @test degree(intersect(A, cyclotomic_field(ClassField, 10))) == 1 
+  @test degree(intersect(A, cyclotomic_field(ClassField, 10))) == 1
 end
 
 @testset "Some abelian extensions" begin
@@ -98,7 +98,7 @@ end
   r, mr = Hecke.ray_class_groupQQ(O, 7872, true, 16)
   ls = subgroups(r, quotype = [16], fun = (x, y) -> quo(x, y, false)[2])
   @test Hecke.has_quotient(r, [16])
-  class_fields = [];
+  class_fields = []
   for s in ls;
     C = ray_class_field(mr, s)::Hecke.ClassField{Hecke.MapRayClassGrp, GrpAbFinGenMap}
     CC = number_field(C)
@@ -107,5 +107,23 @@ end
     end
   end
   @test length(class_fields) == 14
+
+  K, a = quadratic_field(2, cached = false)
+  @test length(abelian_extensions(K, [2], fmpz(10)^4, absolutely_distinct = true)) == 38
+
+  # with target signatures
+  K, a = number_field(x^3 - x^2 - 2*x + 1, cached = false)
+  l = abelian_extensions(K, [2, 2], fmpz(10)^12)
+  @test length(l) == 28
+  l1 = abelian_extensions(K, [2, 2], fmpz(10)^12, signatures = [(4, 4)])
+  @test length(l1) == 3
+  l2 = abelian_extensions(K, [2, 2], fmpz(10)^12, signatures = [(0, 6)])
+  @test length(l2) == 25
+  l3 = abelian_extensions(K, [2, 2], fmpz(10)^12, signatures = [(0, 6), (4, 4)])
+  @test length(l3) == 28
+  l4 = abelian_extensions(K, [2, 2], fmpz(10)^12, signatures = [(0, 6), (4, 4), (0, 0)])
+  @test length(l4) == 28
+  l5 = abelian_extensions(K, [2, 2], fmpz(10)^12, signatures = [(0, 0)])
+  @test length(l5) == 0
 end
 

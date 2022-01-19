@@ -23,6 +23,11 @@ function simplify(K::AnticNumberField; canonical::Bool = false, cached::Bool = t
     return L, hom(L, K, gen(K), check = false)
   end
   if canonical
+    if !isdefining_polynomial_nice(K)
+      K1, mK1 = simplify(K, cached = false, save_LLL_basis = false)
+      K2, mK2 = simplify(K1, cached = cached, save_LLL_basis = save_LLL_basis, canonical = true)
+      return K2, mK2*mK1
+    end
     a, f1 = polredabs(K)
     f = Qx(f1)
     L = NumberField(f, cached = cached, check = false)[1]
@@ -78,19 +83,23 @@ function simplify(K::AnticNumberField; canonical::Bool = false, cached::Bool = t
     OL = NfOrd(BOL, false)
     if isdefined(ZK, :disc)
       OL.disc = ZK.disc
-      OL.index = root(divexact(numerator(discriminant(L.pol)), OL.disc), 2)
+      if isdefining_polynomial_nice(L)
+        OL.index = root(divexact(numerator(discriminant(L.pol)), OL.disc), 2)
+      end
     end
     OL.ismaximal = 1
     Hecke._set_maximal_order(L, OL)
   end
-  embed(m)
-  embed(inv(m))
+  if cached
+    embed(m)
+    embed(inv(m))
+  end
   return L, m
 end
 
 function _simplify(O::NfAbsOrd)
   K = nf(O)
-  
+
   B = basis(O, K, copy = false)
   nrep = min(3, degree(K))
   Bnew = elem_type(K)[]
@@ -103,9 +112,13 @@ function _simplify(O::NfAbsOrd)
   end
   #First, we search for elements that are primitive using block systems in the simple case.
   B1 = _sieve_primitive_elements(Bnew)
-    
+
   #Now, we select the one of smallest T2 norm
   a = primitive_element(K)
+  d = denominator(a, O)
+  if !isone(d)
+    a *= d
+  end
   I = t2(a)
   for i = 1:length(B1)
     t2n = t2(B1[i])
@@ -124,7 +137,7 @@ end
 function _sieve_primitive_elements(B::Vector{NfAbsNSElem})
   K = parent(B[1])
   Zx = PolynomialRing(FlintZZ, "x", cached = false)[1]
-  pols = [Zx(Hecke.isunivariate(x)[2]) for x in K.pol]
+  pols = [Zx(to_univariate(Globals.Qx, x)) for x in K.pol]
   p, d = _find_prime(pols)
   F = FlintFiniteField(p, d, "w", cached = false)[1]
   Fp = GF(p, cached = false)
@@ -151,14 +164,14 @@ function _sieve_primitive_elements(B::Vector{NfAbsNSElem})
     end
     if _is_primitive_via_block(B[i], rt_all, Fpt)
       push!(indices, i)
-    end 
+    end
   end
   return B[indices]
 end
 
 function _is_primitive_via_block(el::NfAbsNSElem, rt::Vector{Vector{fq_nmod}}, Rt::MPolyRing)
   K = parent(el)
-  fR = map_coeffs(base_ring(Rt), data(el), parent = Rt)
+  fR = map_coefficients(base_ring(Rt), data(el), parent = Rt)
   s = Set{fq_nmod}()
   for x in rt
     val = evaluate(fR, x)
@@ -174,7 +187,7 @@ function _is_primitive_via_block(el::NfAbsNSElem, rt::Vector{Vector{fq_nmod}}, R
 end
 
 function _block(el::NfAbsNSElem, rt::Vector{Vector{fq_nmod}}, R::GaloisField)
-  fR = map_coeffs(R, data(el))
+  fR = map_coefficients(R, data(el))
   s = fq_nmod[evaluate(fR, x) for x in rt]
   b = Vector{Int}[]
   a = BitSet()
@@ -194,7 +207,7 @@ function _block(el::NfAbsNSElem, rt::Vector{Vector{fq_nmod}}, R::GaloisField)
   return b
 end
 
-function AbstractAlgebra.map_coeffs(F::GaloisField, f::fmpq_mpoly; parent = PolynomialRing(F, nvars(parent(f)), cached = false)[1])
+function AbstractAlgebra.map_coefficients(F::GaloisField, f::fmpq_mpoly; parent = PolynomialRing(F, nvars(parent(f)), cached = false)[1])
   dF = denominator(f)
   d = F(dF)
   if iszero(d)
@@ -202,7 +215,7 @@ function AbstractAlgebra.map_coeffs(F::GaloisField, f::fmpq_mpoly; parent = Poly
   end
   m = inv(d)
   ctx = MPolyBuildCtx(parent)
-  for x in zip(coeffs(f), exponent_vectors(f))
+  for x in zip(coefficients(f), exponent_vectors(f))
     el = numerator(x[1]*dF)
     push_term!(ctx, F(el)*m, x[2])
   end
@@ -252,7 +265,7 @@ end
  #the length of such a block (system) is the degree of Q(a):Q, the length
  # of a block is the degree K:Q(a)
  # a is primitive iff the block system has length n
-function _block(a::nf_elem, R::Array{fq_nmod, 1}, ap::fq_nmod_poly)
+function _block(a::nf_elem, R::Vector{fq_nmod}, ap::fq_nmod_poly)
   # TODO:
   # Maybe this _tmp business has to be moved out of this function too
   _R = GF(Int(characteristic(base_ring(ap))), cached = false)
@@ -315,7 +328,7 @@ function _find_prime(v::Vector{fmpz_poly})
     Rt = PolynomialRing(R, "t", cached = false)[1]
     found_bad = false
     for j = 1:length(v)
-      fR = map_coeffs(R, v[j], parent = Rt)
+      fR = map_coefficients(R, v[j], parent = Rt)
       if degree(fR) != degree(v[j]) || !issquarefree(fR)
         found_bad = true
         break
@@ -332,7 +345,7 @@ function _find_prime(v::Vector{fmpz_poly})
       d1 = lcm(Int[x for (x, v) in FS])
       d = lcm(d1, d)
     end
-    if d < total_deg^2
+    if d <= total_deg^2
       candidates[i] = (p, d)
       i += 1
     end
@@ -411,8 +424,10 @@ function polredabs(K::AnticNumberField)
   eps = BigFloat(E.d)^(1//2)
 
   found_pe = false
+  first = true
   while !found_pe
-    while enum_ctx_next(E)
+    while first || enum_ctx_next(E)
+      first = false
 #      @show E.x
       M = E.x*E.t
       q = elem_from_mat_row(K, M, 1, E.t_den)
@@ -423,7 +438,7 @@ function polredabs(K::AnticNumberField)
       found_pe = true
 #  @show    llq = length(q)
 #  @show sum(E.C[i,i]*(BigFloat(E.x[1,i]) + E.tail[i])^2 for i=1:E.limit)/BigInt(E.t_den^2)
-      lq = Ec - (E.l[1] - E.C[1, 1]*(BigFloat(E.x[1,1]) + E.tail[1])^2) #wrong, but where?
+      lq = Ec - (E.l[1] - E.C[1, 1]*(BigFloat(E.x[1,1]) + E.tail[1])^2)
 #      @show lq/E.t_den^2
 
       if lq < la + eps
@@ -436,6 +451,7 @@ function polredabs(K::AnticNumberField)
           if lq/la < 0.8
 #            @show "re-init"
             enum_ctx_start(E, E.x, eps = 1.01)  #update upperbound
+            first = true
             Ec = BigFloat(E.c//E.d)
           end
           la = lq
@@ -445,10 +461,37 @@ function polredabs(K::AnticNumberField)
     end
     scale *= 2
     enum_ctx_start(E, matrix(FlintZZ, 1, n, l), eps = scale)
+    first = true
     Ec = BigFloat(E.c//E.d)
   end
 
   setprecision(BigFloat, old)
+  #try to find the T2 shortest element
+  #the precision management here needs a revision once we figure out
+  #how....
+  #examples that require this are Gunters:
+  #=
+  die drei Polynome
+
+[ 10834375376002294480896, x^18 - x^16 - 6*x^14 - 4*x^12 - 4*x^10 + 2*x^8 +
+6*x^6 - 4*x^4 + 3*x^2 - 1 ],
+[ 10834375376002294480896, x^18 - 3*x^16 + 4*x^14 - 6*x^12 - 2*x^10 + 4*x^8 +
+4*x^6 + 6*x^4 + x^2 - 1 ],
+[ 10834375376002294480896, x^18 + x^16 - x^14 - 8*x^12 - 3*x^8 + 27*x^6 -
+25*x^4 + 8*x^2 - 1 ],
+
+
+werden alle als 'canonical' ausgegeben, obwohl sie isomorphe
+K"orper definieren ??
+=#
+  sort!(all_a, lt = (a,b) -> length(a) < length(b))
+  i = length(all_a)
+  la1 = length(all_a[1])
+  while i >= 1 && la1 <= length(all_a[i]) - 1e-10
+    i -= 1
+  end
+  all_a = all_a[1:i]
+
   all_f = Tuple{nf_elem, fmpq_poly}[(x, minpoly(x)) for x=all_a]
   all_d = fmpq[abs(discriminant(x[2])) for x= all_f]
   m = minimum(all_d)
@@ -485,7 +528,7 @@ function minQ(A::Tuple{nf_elem, fmpq_poly})
   a = A[1]
   f = A[2]
   q1, q2 = Q1Q2(f)
-  if lead(q1)>0 && lead(q2) > 0
+  if leading_coefficient(q1)>0 && leading_coefficient(q2) > 0
     return (-A[1], f(-gen(parent(f)))*(-1)^degree(f))
   else
     return (A[1], f)

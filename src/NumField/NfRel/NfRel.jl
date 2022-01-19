@@ -105,8 +105,8 @@ order_type(::Type{NfRel{T}}) where {T} = NfRelOrd{T, fractional_ideal_type(order
 
 @inline setcoeff!(a::NfRelElem{T}, i::Int, c::T) where {T} = setcoeff!(a.data, i, c)
 
-# copy does not do anything (so far), this is only for compatibility with coeffs(::AbsAlgAssElem)
-function coeffs(a::NfRelElem{T}; copy::Bool = false) where {T}
+# copy does not do anything (so far), this is only for compatibility with coefficients(::AbsAlgAssElem)
+function coefficients(a::NfRelElem{T}; copy::Bool = false) where {T}
   return T[coeff(a, i) for i = 0:degree(parent(a)) - 1 ]
 end
 
@@ -186,7 +186,7 @@ end
 #Conversion to absolute non simple
 function number_field(::Type{AnticNumberField}, L::NfRel{nf_elem})
   @assert degree(base_field(L)) == 1
-  pol = isunivariate(map_coeffs(FlintQQ, L.pol))[2]
+  pol = to_univariate(Globals.Qx, map_coefficients(FlintQQ, L.pol))
   return number_field(pol, check = false)
 end
 
@@ -246,7 +246,7 @@ function Base.:(*)(a::NfRelElem{T}, b::NfRelElem{T}) where {T}
   return parent(a)(data(a) * data(b))
 end
 
-function divexact(a::NfRelElem{T}, b::NfRelElem{T}) where {T}
+function divexact(a::NfRelElem{T}, b::NfRelElem{T}; check::Bool = true) where {T}
   b == 0 && error("Element not invertible")
   parent(a) == parent(b) || force_op(divexact, a, b)::NfRelElem{T}
   return a*inv(b)
@@ -289,7 +289,7 @@ function Base.:(^)(a::NfRelElem, n::Int)
     error("Element is not invertible")
   end
 
-  return K(powmod(data(a), n, K.pol))
+  return K(powermod(data(a), n, K.pol))
 end
 
 function Base.:(^)(a::NfRelElem, b::fmpz)
@@ -515,7 +515,7 @@ end
 
 function norm(a::NfRelElem{nf_elem}, new::Bool = !true)
   if new && ismonic(parent(a).pol) #should be much faster - eventually
-    return resultant_mod(a.data, parent(a).pol)
+    return resultant_mod(parent(a).pol, a.data)
   end
   M = representation_matrix(a)
   return det(M)
@@ -523,7 +523,7 @@ end
 
 function norm(a::NfRelElem, new::Bool = true)
   if new && ismonic(parent(a).pol)
-    return resultant(a.data, parent(a).pol)
+    return resultant(parent(a).pol, a.data)
   end
   M = representation_matrix(a)
   return det(M)
@@ -592,24 +592,12 @@ end
 #TODO: cache traces of powers of the generator on the field, then
 #      the trace does not need the matrix
 
-@doc Markdown.doc"""
-    charpoly(a::NfRelElem) -> PolyElem
-
-Given an element $a$ in an extension $L/K$, this function returns the
-characteristic polynomial of $a$ over $K$.
-"""
 function charpoly(a::NfRelElem)
   M = representation_matrix(a)
   R = PolynomialRing(base_field(parent(a)), cached = false)[1]
   return charpoly(R, M)
 end
 
-@doc Markdown.doc"""
-    minpoly(a::NfRelElem) -> PolyElem
-
-Given an element $a$ in an extension $L/K$, this function returns the minimal
-polynomial of $a$ over $K$.
-"""
 function minpoly(a::NfRelElem{S}) where {S}
   M = representation_matrix(a)
   R = PolynomialRing(base_field(parent(a)), cached = false)[1]
@@ -701,8 +689,8 @@ function normal_basis(L::NfRel{nf_elem}, check::Bool = false)
     F, mF = ResidueField(OK, p)
     mmF = extend(mF, K)
     Ft, t = PolynomialRing(F, "t", cached = false)
-    ft = map_coeffs(mmF, L.pol, parent = Ft)
-    pt = powmod(t, order(F), ft)
+    ft = map_coefficients(mmF, L.pol, parent = Ft)
+    pt = powermod(t, order(F), ft)
 
     if degree(gcd(ft, pt - t)) == degree(ft)
       # Lift an idempotent of O/pO
@@ -766,7 +754,7 @@ rand(rng::AbstractRNG, L::NfRel, B::UnitRange{Int}) = rand(rng, make(L, B))
 @doc Markdown.doc"""
     kummer_generator(K::NfRel{nf_elem}) -> nf_elem
 
-Given an extension $K/k$ which is a cyclic Kummer extension of degree $n$, returns an element $a\in k$ 
+Given an extension $K/k$ which is a cyclic Kummer extension of degree $n$, returns an element $a\in k$
 such that $K = k(\sqrt[n]{a})$. Throws an error if the extension is not a cyclic Kummer extension.
 """
 function kummer_generator(K::NfRel{nf_elem})
@@ -825,7 +813,7 @@ end
 ################################################################################
 
 function signature(L::NfRel)
-  c = get_special(L, :signature)
+  c = get_attribute(L, :signature)
   if c isa Tuple{Int, Int}
     return c::Tuple{Int, Int}
   end
@@ -837,7 +825,7 @@ function signature(L::NfRel)
   end
   @assert mod(absolute_degree(L) - rL, 2) == 0
   r, s = rL, div(absolute_degree(L) - rL, 2)
-  set_special(L, :signature => (r, s))
+  set_attribute!(L, :signature => (r, s))
   return r, s
 end
 

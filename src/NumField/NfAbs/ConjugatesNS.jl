@@ -22,25 +22,27 @@ function real_places(K::NfAbsNS)
 end
 
 function infinite_places(K::NfAbsNS)
-  c = conjugate_data_arb_roots(K, 32, copy = false)
+  get_attribute!(K, :infinite_places) do
+    c = conjugate_data_arb_roots(K, 32, copy = false)
 
-  res = InfPlcNfAbsNS[]
+    res = InfPlcNfAbsNS[]
 
-  l = ngens(K)
+    l = ngens(K)
 
-  j = 1
+    j = 1
 
-  for v in c[2]
-    push!(res, InfPlcNfAbsNS(K, v, j, true, acb[c[1][i].roots[v[i]] for i in 1:l]))
-    j += 1
-  end
+    for v in c[2]
+      push!(res, InfPlcNfAbsNS(K, v, j, true, acb[c[1][i].roots[v[i]] for i in 1:l]))
+      j += 1
+    end
 
-  for v in c[3]
-    push!(res, InfPlcNfAbsNS(K, v, j, false, acb[c[1][i].roots[v[i]] for i in 1:l]))
-    j += 1
-  end
+    for v in c[3]
+      push!(res, InfPlcNfAbsNS(K, v, j, false, acb[c[1][i].roots[v[i]] for i in 1:l]))
+      j += 1
+    end
 
-  return res
+    return res
+  end::Vector{InfPlcNfAbsNS}
 end
 
 function Base.show(io::IO, P::InfPlcNfAbsNS)
@@ -51,19 +53,19 @@ function Base.show(io::IO, P::InfPlcNfAbsNS)
 end
 
 function conjugates_data_roots(K::NfAbsNS)
-  cache = get_special(K, :conjugates_data_roots)
+  cache = get_attribute(K, :conjugates_data_roots)
   if cache !== nothing
     return cache
   end
-  pols = fmpq_poly[isunivariate(x)[2] for x in K.pol]
+  pols = fmpq_poly[to_univariate(Globals.Qx, x) for x in K.pol]
   ctxs = acb_root_ctx[acb_root_ctx(x) for x in pols]
-  set_special(K, :conjugates_data_roots => ctxs)
+  set_attribute!(K, :conjugates_data_roots => ctxs)
   return ctxs
 end
 
 function conjugate_data_arb_roots(K::NfAbsNS, p::Int; copy = true)
 
-  cache = get_special(K, :conjugates_data)
+  cache = get_attribute(K, :conjugates_data)
   if cache !== nothing
     if haskey(cache, p)
       return cache[p]
@@ -96,7 +98,7 @@ function conjugate_data_arb_roots(K::NfAbsNS, p::Int; copy = true)
     acb_roots_vec[i] = acb_roots(p, all_roots, real_roots, complex_roots)
   end
   ind_real, ind_complex = enumerate_conj_prim(acb_roots_vec)
-  set_special(K, :conjugates_data => Dict(p => (acb_roots_vec, ind_real, ind_complex)))
+  set_attribute!(K, :conjugates_data => Dict(p => (acb_roots_vec, ind_real, ind_complex)))
   return acb_roots_vec, ind_real, ind_complex
 
 end
@@ -165,7 +167,7 @@ function _is_complex_conj(v::Vector, w::Vector, pos::Vector, roots::Vector)
     elseif v[i] != w[i]
       return false
     end
-    i += 1    
+    i += 1
   end
   return true
 end
@@ -202,7 +204,7 @@ function _evaluate(f::fmpq_mpoly, vals::Vector{acb})
   powers = [Dict{Int, acb}() for i in 1:length(vals)]
   r = acb[zero(S)]
   i = UInt(1)
-  cvzip = zip(coeffs(f), exponent_vectors(f))
+  cvzip = zip(coefficients(f), exponent_vectors(f))
   for (c, v) in cvzip
     t = one(S)
     for j = 1:length(vals)
@@ -215,7 +217,7 @@ function _evaluate(f::fmpq_mpoly, vals::Vector{acb})
       end
       mul!(t, t, powers[j][exp])
       #t = t*powers[j][exp]
-    end 
+    end
     push!(r, c*t)
     j = i = i + 1
     while iseven(j) && length(r) > 1
@@ -239,7 +241,7 @@ function signature(K::NfAbsNS)
   if K.signature[1] != -1
     return K.signature
   end
-  signatures = Tuple{Int, Int}[signature(isunivariate(f)[2]) for f in K.pol]
+  signatures = Tuple{Int, Int}[signature(to_univariate(Globals.Qx, f)) for f in K.pol]
   r = prod(x[1] for x in signatures)
   s = div(degree(K) - r, 2)
   K.signature = (r, s)

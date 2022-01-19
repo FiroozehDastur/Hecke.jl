@@ -108,7 +108,6 @@ end
 The unit group of $R = Z/nZ$ together with the appropriate map.
 """
 function UnitGroup(R::Nemo.FmpzModRing, mod::fmpz=fmpz(0))
-
   m = modulus(R)
   fm = factor(m).fac
 
@@ -156,7 +155,7 @@ function UnitGroup(R::Nemo.FmpzModRing, mod::fmpz=fmpz(0))
       push!(r, s)
       push!(mi, pk)
       gg = gen_mod_pk(p, mod)
-      gg = powmod(gg, divexact(p-1, gcd(p-1, mod)), m)
+      gg = powermod(gg, divexact(p-1, gcd(p-1, mod)), m)
       if mpk == 1
         push!(g, gg)
       else
@@ -224,7 +223,7 @@ function UnitGroup(R::Nemo.NmodRing, mod::fmpz=fmpz(0))
       push!(r, s)
       push!(mi, pk)
       gg = gen_mod_pk(p, mod)
-      gg = powmod(gg, divexact(p-1, gcd(p-1, mod)), fmpz(m))
+      gg = powermod(gg, divexact(p-1, gcd(p-1, mod)), fmpz(m))
       if mpk == 1
         push!(g, gg)
       else
@@ -289,8 +288,10 @@ function disc_log_mod(a::fmpz, b::fmpz, M::fmpz)
       end
       @assert (b-1) % 8 == 0
       @assert (a^2-1) % 8 == 0
-      F = FlintPadicField(p, fM[p])
-      g += 2*lift(divexact(log(F(b)), log(F(a^2))))
+      if fM[p] > 3
+        F = FlintPadicField(p, fM[p], cached = false)
+        g += 2*lift(divexact(log(F(b)), log(F(a^2))))
+      end
       return g
     else
       error("illegal generator mod 2^$(fM[p])")
@@ -322,8 +323,8 @@ function disc_log_mod(a::fmpz, b::fmpz, M::fmpz)
     yx_l = b_l mod p^l
   =#
 
-  A = powmod(a, p-1, M)
-  B = b*powmod(a, -g, M) %M
+  A = powermod(a, p-1, M)
+  B = b*powermod(a, -g, M) %M
   @assert B%p == 1
   @assert A%p == 1
   lp = [fM[p]]
@@ -352,9 +353,9 @@ function disc_log_mod(a::fmpz, b::fmpz, M::fmpz)
 #    println("Ai=$Ai, Bi=$Bi, yi=$yi, pim1 = $pim1")
     g += yi*(p-1)*p^(lp[i+1]-1)
 #    println("for pim1=$pim1 yi=$yi g=$g")
-#    println(valuation(b*powmod(a, -g, M)-1, p))
-    B = B*powmod(A, -yi, M) % M
-    A = powmod(a, (p-1)*divexact(pim, p), M)
+#    println(valuation(b*powermod(a, -g, M)-1, p))
+    B = B*powermod(A, -yi, M) % M
+    A = powermod(a, (p-1)*divexact(pim, p), M)
   end
   return g
 end
@@ -431,7 +432,7 @@ end
 function unit_group_mod(R::Nemo.NmodRing, n::Int)
 
   fm = factor(fmpz(R.n))
-  gens = Array{Int,1}(undef, 0)
+  gens = Vector{Int}(undef, 0)
   structt = Int[]
   disclogs = Function[]
 
@@ -666,10 +667,10 @@ function _unit_grp_residue_field_mod_n(p::Int, n::Int)
       else
         return mod(inv*disc_log_bs_gs(w, y, npart), k)
       end
-     end    
-  end 
+     end
+  end
   return Int(g.data), k, disc_log
-  
+
 end
 
 unit_group(A::Nemo.FmpzModRing) = UnitGroup(A)
@@ -700,7 +701,7 @@ function Base.iterate(R::GaloisField, st::UInt)
   if st == R.n - 1
     return nothing
   end
- 
+
   return R(st + 1), st + 1
 end
 

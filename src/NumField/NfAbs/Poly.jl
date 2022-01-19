@@ -65,15 +65,15 @@ function gcd(a::Generic.Poly{nf_elem}, b::Generic.Poly{nf_elem}, test_sqfr::Bool
     if iszero(b)
       return b
     else
-      return  inv(lead(b))*b
+      return  inv(leading_coefficient(b))*b
     end
   elseif iszero(b)
-    return inv(lead(a))*a
+    return inv(leading_coefficient(a))*a
   end
   if min(degree(a), degree(b)) >= 6 || degree(base_ring(a)) > 5 || test_sqfr
     g = gcd_modular_kronnecker(a, b, test_sqfr)
     test_sqfr && return g
-    return inv(lead(g))*g  # we want it monic...
+    return inv(leading_coefficient(g))*g  # we want it monic...
   else
     return gcd_euclid(a, b)
   end
@@ -104,9 +104,9 @@ function gcd_modular(a::Generic.Poly{nf_elem}, b::Generic.Poly{nf_elem})
     p = next_prime(p)
     me = modular_init(K, p)
     t = Hecke.modular_proj(a, me)
-    fp = deepcopy(t)::Array{fq_nmod_poly, 1}  # bad!!!
+    fp = deepcopy(t)::Vector{fq_nmod_poly}  # bad!!!
     gp = Hecke.modular_proj(b, me)
-    gp = [gcd(fp[i], gp[i]) for i=1:length(gp)]::Array{fq_nmod_poly, 1}
+    gp = [gcd(fp[i], gp[i]) for i=1:length(gp)]::Vector{fq_nmod_poly}
     gc = Hecke.modular_lift(gp, me)::Generic.Poly{nf_elem}
     if isone(gc)
       return parent(a)(1)
@@ -151,7 +151,9 @@ function _preproc_pol(a::Generic.Poly{nf_elem}, b::Generic.Poly{nf_elem})
   if isdefining_polynomial_nice(K)
     fsa = evaluate(derivative(K.pol), gen(K))*d
   else
-    fsa = short_elem(different(any_order(K)))*d
+    E = any_order(K)
+    cd = codifferent(E)
+    fsa = short_elem(colon(1*E, numerator(cd))*denominator(cd))*d
   end
   return a2, b2, fsa
 end
@@ -164,7 +166,7 @@ function gcd_euclid(a::AbstractAlgebra.PolyElem{nf_elem}, b::AbstractAlgebra.Pol
    while !iszero(a)
       (a, b) = (mod(b, a), a)
    end
-   d = lead(b)
+   d = leading_coefficient(b)
    return divexact(b, d)
 end
 
@@ -232,7 +234,7 @@ function gcd_modular_kronnecker(a::Generic.Poly{nf_elem}, b::Generic.Poly{nf_ele
       end
     end
     if g == last_g && iszero(mod(a, g)) && iszero(mod(b, g))
-      return divexact(g, lead(g))
+      return divexact(g, leading_coefficient(g))
     else
       last_g = g
     end
@@ -438,9 +440,9 @@ end
 #
 ################################################################################
 
-function nf_poly_to_xy(f::PolyElem{Nemo.nf_elem}, Qxy::PolyRing, Qx::PolyRing)
+function nf_poly_to_xy(f::PolyElem, Qxy::PolyRing, Qx::PolyRing)
   K = base_ring(f)
-  Qy = parent(K.pol)
+  Qy = parent(defining_polynomial(K))
   y = gen(Qx)
 
   res = zero(Qxy)
@@ -508,7 +510,7 @@ function landau_mignotte_bound(f::PolyElem{nf_elem})
   Zx, x = PolynomialRing(FlintZZ, cached = false)
   g = Zx()
   for i=0:degree(f)
-    setcoeff!(g, i, Hecke.upper_bound(sqrt(t2(coeff(f, i))), fmpz))
+    setcoeff!(g, i, Hecke.upper_bound(fmpz, sqrt(t2(coeff(f, i)))))
   end
   b = fmpz()
   ccall((:fmpz_poly_factor_mignotte, libflint), Nothing, (Ref{fmpz}, Ref{fmpz_poly}), b, g)
@@ -517,12 +519,12 @@ end
 
 
 
-function cld_bound(f::PolyElem{nf_elem}, k::Array{Int, 1})
+function cld_bound(f::PolyElem{nf_elem}, k::Vector{Int})
   @assert all(kk -> 0 <= kk < degree(f), k)
   Zx, x = PolynomialRing(FlintZZ, cached = false)
   g = Zx()
   for i=0:degree(f)
-    setcoeff!(g, i, Hecke.upper_bound(sqrt(t2(coeff(f, i))), fmpz))
+    setcoeff!(g, i, Hecke.upper_bound(fmpz, sqrt(t2(coeff(f, i)))))
   end
   bb = fmpz[]
   for kk = k
@@ -540,4 +542,4 @@ function cld_bound(f::fmpz_poly, k::Int)
   ccall((:fmpz_poly_CLD_bound, libflint), Nothing, (Ref{fmpz}, Ref{fmpz_poly}, Int64), b, f, k)
   return b
 end
-cld_bound(f::fmpz_poly, k::Array{Int, 1}) = map(x->cld_bound(f, x), k)
+cld_bound(f::fmpz_poly, k::Vector{Int}) = map(x->cld_bound(f, x), k)

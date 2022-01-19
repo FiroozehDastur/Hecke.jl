@@ -10,5 +10,6 @@
   include("Misc/Localization.jl")
   include("Misc/OrdLocalization.jl")
   include("Misc/jordan_test.jl")
-  #include("Misc/RelFinField.jl")
+  include("Misc/RelFinField.jl")
+  include("Misc/UnitsModM.jl")
 end

@@ -57,7 +57,7 @@ end
 ################################################################################
 
 @doc Markdown.doc"""
-    zeros(f::fmpz_poly) -> Array{fmpz, 1}
+    zeros(f::fmpz_poly) -> Vector{fmpz}
 
 Computes the integer zeros of a given polynomial $f$.
 """
@@ -68,7 +68,7 @@ function zeros(f::fmpz_poly)
 
     # check if there are monic linear factors <-> zeros
   for i in fac
-    if degree(i[1]) == 1 && lead(i[1]) == 1
+    if degree(i[1]) == 1 && leading_coefficient(i[1]) == 1
       push!(zeros, -coeff(i[1],0))
     end
   end
@@ -88,7 +88,7 @@ end
 Checks if an element $x$ of a ResidueRing of $Z$ is a square, say of y
 returns (true, y) in that case and (false, 0) otherwise
 """
-function Nemo.issquare_with_square_root(x::ResElem{fmpz})
+function Nemo.issquare_with_sqrt(x::ResElem{fmpz})
     R = parent(x)
     p = modulus(R)
     xnew = x.data
@@ -104,7 +104,7 @@ function Nemo.issquare_with_square_root(x::ResElem{fmpz})
     end
 end
 
-function Nemo.issquare_with_square_root(x::Union{nmod, gfp_elem})
+function Nemo.issquare_with_sqrt(x::Union{nmod, gfp_elem})
     R = parent(x)
     p = modulus(R)
     xnew = x.data
@@ -127,7 +127,7 @@ end
 Checks if an element $x$ of $\mathbf F_q$ is a square, say of $y$.
 Returns `(true, y)` in that case and `(false, 0)` otherwise
 """
-function Nemo.issquare_with_square_root(x::FinFieldElem)
+function Nemo.issquare_with_sqrt(x::FinFieldElem)
     R = parent(x)
     S, t = PolynomialRing(R, "t", cached = false)
 
@@ -149,12 +149,12 @@ function Nemo.issquare_with_square_root(x::FinFieldElem)
     end
 end
 
-@doc Markdown.doc"""
-    quadroots(a::fmpz, b::fmpz, c::fmpz, p::fmpz) -> Bool
-
-Returns true if the quadratic congruence of the quadratic polynomial
-$ax^2 + bx + c = 0$ has a root modulo $p$.
-"""
+# @doc Markdown.doc"""
+#     quadroots(a::fmpz, b::fmpz, c::fmpz, p::fmpz) -> Bool
+#
+# Returns true if the quadratic congruence of the quadratic polynomial
+# $ax^2 + bx + c = 0$ has a root modulo $p$.
+# """
 function quadroots(a, b, c, p)
   F_p = GF(p, cached = false)
   R, x = PolynomialRing(F_p, "x", cached = false)
@@ -231,7 +231,7 @@ end
 
 @doc Markdown.doc"""
     characteristic(R::ResRing{fmpz}) -> Nemo.fmpz
-    
+
 Returns the characteristic of $R$
 """
 function characteristic(R::ResRing{fmpz})

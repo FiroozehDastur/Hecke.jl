@@ -143,22 +143,27 @@ function _order(A::S, gens::Vector{T}; cached::Bool = true, check::Bool = true) 
     cur = append!([one(A)], gens)
   end
   Bmat = basis_matrix(cur, FakeFmpqMat)
+  cur_bas = [elem_from_mat_row(A, Bmat.num, i, Bmat.den) for i in 1:nrows(Bmat)]
   while true
-    k = length(cur)
-    prods = Vector{elem_type(A)}(undef, k^2)
+    k = length(cur_bas)
+    prods = Vector{elem_type(A)}(undef, 2*k*length(gens))
+    l = 1
     for i = 1:k
-      ik = (i - 1)*k
-      for j = 1:k
-        prods[ik + j] = cur[i]*cur[j]
+      for j in 1:length(gens)
+        prods[l] = cur_bas[i] * gens[j]
+        l +=1
+        prods[l] = gens[j] * cur_bas[i]
+        l += 1
       end
     end
     Ml = hnf(basis_matrix(prods, FakeFmpqMat))
-    r = findfirst(i -> !iszero_row(Ml.num, i), 1:k^2)
+    r = findfirst(i -> !iszero_row(Ml.num, i), 1:nrows(Ml))
     nBmat = sub(Ml, r:nrows(Ml), 1:ncols(Ml))
     if nrows(nBmat) == nrows(Bmat) && Bmat == nBmat
       break
     end
     Bmat = nBmat
+    cur_bas = [elem_from_mat_row(A, Bmat.num, i, Bmat.den) for i in 1:nrows(Bmat)]
   end
   if nrows(Bmat) != dim(A)
     error("Elements do not generate an order")
@@ -379,7 +384,7 @@ function rand(rng::AbstractRNG,
   O(map(fmpz, rand(rng, R, degree(O))))
 end
 
-RandomExtensions.make(O::AlgAssAbsOrd, n::Union{Integer, fmpz}) =
+RandomExtensions.make(O::AlgAssAbsOrd, n::IntegerUnion) =
   make(O, Integer(-n):Integer(n))
 
 @doc Markdown.doc"""
@@ -390,7 +395,7 @@ Returns a random element of $O$ whose coefficients lie in $R$.
 rand(O::AlgAssAbsOrd, R::UnitRange) = rand(Random.GLOBAL_RNG, O, R)
 
 @doc Markdown.doc"""
-    rand(O::AlgAssAbsOrd, n::Union{Integer, fmpz}) -> AlgAssAbsOrdElem
+    rand(O::AlgAssAbsOrd, n::IntegerUnion) -> AlgAssAbsOrdElem
 
 Returns a random element of $O$ whose coefficients are bounded by $n$.
 """
@@ -408,20 +413,20 @@ rand(rng::AbstractRNG, O::AlgAssAbsOrd, n::Integer) = rand(rng, make(O, n))
 #
 ################################################################################
 
-function basis_matrix(A::Array{S, 1}, ::Type{FakeFmpqMat}) where {S <: AbsAlgAssElem{fmpq}}
+function basis_matrix(A::Vector{S}, ::Type{FakeFmpqMat}) where {S <: AbsAlgAssElem{fmpq}}
   @assert length(A) > 0
   n = length(A)
   d = dim(parent(A[1]))
 
   M = zero_matrix(FlintZZ, n, d)
 
-  dens = [lcm([denominator(coeffs(A[i], copy = false)[j]) for j=1:d]) for i=1:n]
+  dens = [lcm([denominator(coefficients(A[i], copy = false)[j]) for j=1:d]) for i=1:n]
   deno = lcm(dens)
 
   for i in 1:n
     for j in 1:d
-      temp_den = divexact(deno, denominator(coeffs(A[i], copy = false)[j]))
-      M[i, j] = numerator(coeffs(A[i], copy = false)[j]) * temp_den
+      temp_den = divexact(deno, denominator(coefficients(A[i], copy = false)[j]))
+      M[i, j] = numerator(coefficients(A[i], copy = false)[j]) * temp_den
     end
   end
   return FakeFmpqMat(M, deno)
@@ -438,13 +443,13 @@ function basis_matrix(A::Vector{ <: AbsAlgAssElem{T} }) where T
   for i = 1:n
     elem_to_mat_row!(M, i, A[i])
     #for j = 1:d
-    #  M[i, j] = deepcopy(coeffs(A[i], copy = false)[j])
+    #  M[i, j] = deepcopy(coefficients(A[i], copy = false)[j])
     #end
   end
   return M
 end
 
-function basis_matrix(A::Array{AlgAssAbsOrdElem{S, T}, 1}) where S where T
+function basis_matrix(A::Vector{AlgAssAbsOrdElem{S, T}}) where S where T
   @assert length(A) > 0
   n = length(A)
   d = degree(parent(A[1]))
@@ -840,7 +845,7 @@ function any_order(A::AbsAlgAss{fmpq})
   M = vcat(zero_matrix(FlintQQ, 1, dim(A)), d*identity_matrix(FlintQQ, dim(A)))
   oneA = one(A)
   for i = 1:dim(A)
-    M[1, i] = deepcopy(coeffs(oneA, copy = false)[i])
+    M[1, i] = deepcopy(coefficients(oneA, copy = false)[i])
   end
   M = FakeFmpqMat(M)
   M = hnf!(M, :lowerleft)
@@ -866,9 +871,9 @@ end
 
 function maximal_order_via_decomposition(A::AbsAlgAss{fmpq})
   if isdefined(A, :maximal_order)
-    return A.maximal_order::AlgAssAbsOrd{AlgAss{fmpq},AlgAssElem{fmpq,AlgAss{fmpq}}}
+    return A.maximal_order::AlgAssAbsOrd{typeof(A), elem_type(A)}
   end
-  fields_and_maps = as_number_fields(A)
+  fields_and_maps = __as_number_fields(A, use_maximal_order = false)
   M = zero_matrix(FlintQQ, dim(A), dim(A))
   row = 1
   for i = 1:length(fields_and_maps)

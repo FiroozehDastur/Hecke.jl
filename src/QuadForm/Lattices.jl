@@ -3,13 +3,24 @@ export *, +, absolute_basis, absolute_basis_matrix, ambient_space, bad_primes,
        discriminant, dual, fixed_field, generators, gram_matrix_of_rational_span,
        hasse_invariant, hermitian_lattice, intersect, involution, isdefinite,
        isintegral, islocally_isometric, ismodular, isnegative_definite,
-       ispositive_definite, isrationally_equivalent, jordan_decomposition,
+       ispositive_definite, isrationally_isometric, jordan_decomposition,
        local_basis_matrix, norm, pseudo_matrix, quadratic_lattice, rank,
        rational_span, rescale, scale, volume, witt_invariant, lattice,
        Zlattice, automorphism_group_generators, automorphism_group_order,
        isisometric, islocal_norm, normic_defect, issublattice, issublattice_with_relations
 
 export HermLat, QuadLat
+
+# aliases for deprecation
+isequivalent(U::AbsLat, V::AbsLat) = isisometric(U, V)
+isequivalent(U::AbsLat, V::AbsLat, p) = isisometric(U, V, p)
+isrationally_equivalent(U::AbsLat, V::AbsLat) = isisometric(U, V)
+isrationally_equivalent(U::AbsLat, V::AbsLat, p) = isisometric(U, V, p)
+isequivalent(U::AbsSpace, V::AbsSpace) = isisometric(U, V)
+isequivalent(U::AbsSpace, V::AbsSpace, p) = isisometric(U, V, p)
+isequivalent_with_isometry(U::AbsLat, V::AbsLat) = isisometric_with_isometry(U, V)
+isequivalent_with_isometry(U::AbsSpace, V::AbsSpace) = isisometric_with_isometry(U, V)
+
 
 ################################################################################
 #
@@ -110,7 +121,7 @@ function pseudo_basis(L::AbsLat)
 end
 
 @doc Markdown.doc"""
-    coefficient_ideals(L::Abs) -> Vector{NfOrdIdl}
+    coefficient_ideals(L::AbsLat) -> Vector{NfOrdIdl}
 
 Returns the coefficient ideals of the pseudo-basis of $L$.
 """
@@ -149,9 +160,9 @@ involution(::AbsLat)
 @doc Markdown.doc"""
     rank(L::AbsLat) -> Int
 
-Returns the rank of $L$, that is the dimension of the rational span of $L$.
+Returns the rank of the underlying module of $L$.
 """
-rank(L::AbsLat) = rank(rational_span(L))
+rank(L::AbsLat) = dim(rational_span(L))
 
 @doc Markdown.doc"""
     degree(L::AbsLat) -> Int
@@ -312,7 +323,7 @@ end
 
 ################################################################################
 #
-#  Rational (local) equivalence
+#  Rational (local) isometry
 #
 ################################################################################
 
@@ -334,35 +345,35 @@ witt_invariant(L::AbsLat, p)
 
 ################################################################################
 #
-#  Rational equivalent
+#  Rational isometry
 #
 ################################################################################
 
 @doc Markdown.doc"""
-    isrationally_equivalent(L::AbsLat, M::AbsLat, p::Union{InfPlc, NfOrdIdl})
+    isrationally_isometric(L::AbsLat, M::AbsLat, p::Union{InfPlc, NfOrdIdl})
                                                                          -> Bool
 
-Returns whether the rational spans of $L$ and $M$ are equivalent over the
+Returns whether the rational spans of $L$ and $M$ are isometric over the
 completion at $\mathfrak p$.
 """
-isrationally_equivalent(::AbsLat, ::AbsLat, ::NfAbsOrdIdl)
+isrationally_isometric(::AbsLat, ::AbsLat, ::NfAbsOrdIdl)
 
-function isrationally_equivalent(L::AbsLat, M::AbsLat, p::NfAbsOrdIdl)
-  return isequivalent(rational_span(L), rational_span(M), p)
+function isrationally_isometric(L::AbsLat, M::AbsLat, p::NfAbsOrdIdl)
+  return isisometric(rational_span(L), rational_span(M), p)
 end
 
-function isrationally_equivalent(L::AbsLat, M::AbsLat, p::InfPlc)
-  return isequivalent(rational_span(L), rational_span(M), p)
+function isrationally_isometric(L::AbsLat, M::AbsLat, p::InfPlc)
+  return isisometric(rational_span(L), rational_span(M), p)
 end
 
 @doc Markdown.doc"""
-    isrationally_equivalent(L::AbsLat, M::AbsLat)
+    isrationally_isometric(L::AbsLat, M::AbsLat)
                                             -> Bool
 
-Returns whether the rational spans of $L$ and $M$ are equivalent.
+Returns whether the rational spans of $L$ and $M$ are isometric.
 """
-function isrationally_equivalent(L::AbsLat, M::AbsLat)
-  return isequivalent(rational_span(L), rational_span(M))
+function isrationally_isometric(L::AbsLat, M::AbsLat)
+  return isisometric(rational_span(L), rational_span(M))
 end
 
 ################################################################################
@@ -877,7 +888,7 @@ function assert_has_automorphisms(L::AbsLat{<: NumField}; redo::Bool = false)
   end
 
   # Create the automorphism context and compute generators as well as orders
-  
+
   C = ZLatAutoCtx(ZgramL)
   fl, Csmall = try_init_small(C)
   if fl
@@ -893,9 +904,9 @@ function assert_has_automorphisms(L::AbsLat{<: NumField}; redo::Bool = false)
   @hassert :Lattice 1 begin
     flag = true
     for g in gens
-      gt = g'
+      gt = transpose(g)
       for i in 1:length(ZgramL)
-        if g * ZgramL[i] * g' != ZgramL[i]
+        if g * ZgramL[i] * transpose(g) != ZgramL[i]
           flag = false
         end
       end
@@ -962,7 +973,7 @@ end
 @doc Markdown.doc"""
     automorphism_group_generators(L::AbsLat; ambient_representation = true)
 
-Given a definite lattice $L$ returns generators for the automorphism group of $L$. 
+Given a definite lattice $L$ returns generators for the automorphism group of $L$.
 If `ambient_representation` is `true` (the default), the transformations are represented
 with respect to the ambient space of $L$. Otherwise, the transformations are represented
 with respect to the (pseudo-)basis of $L$.
@@ -1092,7 +1103,7 @@ function isisometric(L::AbsLat{<: NumField}, M::AbsLat{<: NumField};
     fl, s1 = can_solve_with_solution(BabsmatL, basis_matrix_of_rational_span(L), side = :left)
     fl, s2 = can_solve_with_solution(basis_matrix_of_rational_span(M), BabsmatM, side = :left)
     T = s1 * change_base_ring(E, T) * s2
-    @hassert :Lattice 1 T * gram_matrix(rational_span(M)) * 
+    @hassert :Lattice 1 T * gram_matrix(rational_span(M)) *
                             _map(transpose(T), involution(L)) ==
                                 gram_matrix(rational_span(L))
     if !ambient_representation
@@ -1120,7 +1131,7 @@ end
 function maximal_sublattices(L::AbsLat, p; use_auto::Bool = false,
                                            callback = false, max = inf)
   @req base_ring(L) == order(p) "asdsd"
-  
+
   B = local_basis_matrix(L, p, type = :submodule)
   n = nrows(B)
   R = base_ring(L)

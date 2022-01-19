@@ -1,5 +1,5 @@
 export ambient_space, rank, gram_matrix, inner_product, involution, ishermitian, isquadratic, isregular,
-       islocal_square, isequivalent, isrationally_equivalent, quadratic_space,
+       islocal_square, isisometric, isrationally_isometric, quadratic_space,
        hermitian_space, diagonal, invariants, hasse_invariant, witt_invariant, orthogonal_basis, fixed_field
 
 ################################################################################
@@ -20,7 +20,7 @@ mutable struct AbsSpaceMor{D, T} <: Map{D, D, HeckeMap, AbsSpaceMor}
   end
 end
 
-function hom(V, W, B; check::Bool = false)
+function hom(V::AbsSpace, W::AbsSpace, B::MatElem; check::Bool = false)
   @req base_ring(V) == base_ring(W) "Spaces must have the same base field"
   @req nrows(B) == dim(V) && ncols(B) == dim(W) """
   Dimension mismatch. Matrix ($(nrows(B))x$(ncols(B))) must be of
@@ -334,16 +334,16 @@ end
 
 ################################################################################
 #
-#  Local equivalence
+#  Local isometry
 #
 ################################################################################
 
 @doc Markdown.doc"""
-    isequivalent(L::AbsSpace, M::AbsSpace, p::Union{InfPlc, NfOrdIdl}) -> Bool
+    isisometric(L::AbsSpace, M::AbsSpace, p::Union{InfPlc, NfOrdIdl}) -> Bool
 
-Returns whether `L` and `M` are equivalent over the completion at `p`.
+Returns whether `L` and `M` are isometric over the completion at `p`.
 """
-isequivalent(L::AbsSpace, M::AbsSpace, p)
+isisometric(L::AbsSpace, M::AbsSpace, p)
 
 ################################################################################
 #
@@ -487,7 +487,7 @@ end
 #
 ################################################################################
 
-# TODO: Use absolute_coordinates 
+# TODO: Use absolute_coordinates
 function restrict_scalars(V::AbsSpace, K::FlintRationalField,
                                        alpha = one(base_ring(V)))
   E = base_ring(V)

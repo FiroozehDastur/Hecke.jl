@@ -111,31 +111,28 @@ function isless(a::fmpq, b::Float64) return a*1.0<b; end
 function isless(a::Float64, b::fmpz) return a<b*1.0; end
 function isless(a::fmpz, b::Float64) return a*1.0<b; end
 
-function (a::FlintIntegerRing)(b::fmpq)
-  !isone(denominator(b)) && error("Denominator not 1")
-  return deepcopy(numerator(b))
-end
+iscommutative(::FlintIntegerRing) = true
 
-function ^(a::fmpz, k::fmpz)
-  if a == 0
-    if k == 0
-      return fmpz(1)
-    end
-    return fmpz(0)
-  end
- 
-  if a == 1
-    return fmpz(1)
-  end
-  if a == -1
-    if isodd(k)
-      return fmpz(-1)
-    else
-      return fmpz(1)
-    end
-  end
-  return a^Int(k)
-end
+#function ^(a::fmpz, k::fmpz)
+#  if a == 0
+#    if k == 0
+#      return fmpz(1)
+#    end
+#    return fmpz(0)
+#  end
+#
+#  if a == 1
+#    return fmpz(1)
+#  end
+#  if a == -1
+#    if isodd(k)
+#      return fmpz(-1)
+#    else
+#      return fmpz(1)
+#    end
+#  end
+#  return a^Int(k)
+#end
 
 function ^(a::fmpq, k::fmpz)
   if a == 0
@@ -144,7 +141,7 @@ function ^(a::fmpq, k::fmpz)
     end
     return fmpq(0)
   end
- 
+
   if a == 1
     return fmpq(1)
   end
@@ -156,10 +153,6 @@ function ^(a::fmpq, k::fmpz)
     end
   end
   return a^Int(k)
-end
-
-function //(a::fmpq, b::fmpz)
-  return a//fmpq(b)
 end
 
 function //(a::fmpz, b::fmpq)
@@ -376,26 +369,6 @@ function gcd!(z::fmpz, x::fmpz, y::fmpz)
    return z
 end
 
-function mul!(z::fmpz, x::fmpz, y::Int)
-  ccall((:fmpz_mul_si, libflint), Nothing, (Ref{fmpz}, Ref{fmpz}, Int), z, x, y)
-  return z
-end
-
-function mul!(z::fmpz, x::fmpz, y::UInt)
-  ccall((:fmpz_mul_ui, libflint), Nothing, (Ref{fmpz}, Ref{fmpz}, UInt), z, x, y)
-  return z
-end
-
-function mul!(z::fmpz, x::fmpz, y::Integer)
-  mul!(z, x, fmpz(y))
-  return z
-end
-
-function one!(a::fmpz)
-  ccall((:fmpz_one, libflint), Nothing, (Ref{fmpz}, ), a)
-  return a
-end
-
 ################################################################################
 #
 #  power detection
@@ -422,7 +395,7 @@ function ispower(a::fmpz)
     if isone(e)
       return 1, a
     end
-    v, s = remove(e, 2)
+    v, s = iszero(e) ? (0, 0) : remove(e, 2)
     return s, -r^(2^v)
   end
   rt = fmpz()
@@ -438,7 +411,7 @@ function ispower(a::fmpz)
 end
 
 function ispower(a::Integer)
-  e,r = ispower(fmpz(a))
+  e, r = ispower(fmpz(a))
   return e, typeof(a)(r)
 end
 
@@ -479,11 +452,6 @@ function ispower(a::fmpz, n::Int)
   return b^n==a, b
 end
 
-function ispower(a::Integer, n::Int)
-  fl, b = ispower(fmpz(a), n)
-  return fl, typeof(a)(b)
-end
-
 function ispower(a::fmpq, n::Int)
   fl, nu = ispower(numerator(a), n)
   if !fl
@@ -491,30 +459,6 @@ function ispower(a::fmpq, n::Int)
   end
   fl, de = ispower(denominator(a), n)
   return fl, fmpq(nu, de)
-end
-
-function issquare(x::fmpq)
-  return x > 0 && issquare(numerator(x)) && issquare(denominator(x))
-end
-
-function issquare_with_square_root(x::fmpq)
-  if x < 0
-    return false, x
-  else
-    fl, n = issquare_with_square_root(numerator(x))
-    !fl && return false, x
-    fl, d = issquare_with_square_root(denominator(x))
-    !fl && return false, x
-    return true, fmpq(n, d)
-  end
-end
-
-function issquare_with_square_root(x::fmpz)
-  if !issquare(x)
-    return false, x
-  else
-    return true, sqrt(x)
-  end
 end
 
 ################################################################################
@@ -533,7 +477,7 @@ mutable struct fmpz_comb
   mod_ninv::UInt
   mod_norm::UInt
 
-  function fmpz_comb(primes::Array{UInt, 1})
+  function fmpz_comb(primes::Vector{UInt})
     z = new()
     ccall((:fmpz_comb_init, libflint), Nothing, (Ref{fmpz_comb}, Ptr{UInt}, Int),
             z, primes, length(primes))
@@ -566,7 +510,7 @@ function _fmpz_comb_temp_clear_fn(z::fmpz_comb_temp)
 end
 
 
-function fmpz_multi_crt_ui!(z::fmpz, a::Array{UInt, 1}, b::fmpz_comb, c::fmpz_comb_temp)
+function fmpz_multi_crt_ui!(z::fmpz, a::Vector{UInt}, b::fmpz_comb, c::fmpz_comb_temp)
   ccall((:fmpz_multi_CRT_ui, libflint), Nothing,
           (Ref{fmpz}, Ptr{UInt}, Ref{fmpz_comb}, Ref{fmpz_comb_temp}, Cint),
           z, a, b, c, 1)
@@ -604,11 +548,12 @@ end
 """
 function nbits(a::Int)
   a==0 && return 0
-  return Int(ceil(log(abs(a))/log(2)))
+  return floor(Int, (log(abs(a))/log(2)))+1
 end
+
 function nbits(a::UInt)
   a==0 && return 0
-  return Int(ceil(log(a)/log(2)))
+  return floor(Int, (log(a)/log(2)))+1
 end
 
 
@@ -647,7 +592,7 @@ end
 
 mutable struct MapSUnitGrpZFacElem <: Map{GrpAbFinGen, FacElemMon{FlintRationalField}, HeckeMap, MapSUnitGrpZFacElem}
   header::MapHeader{GrpAbFinGen, FacElemMon{FlintRationalField}}
-  idl::Array{fmpz, 1}
+  idl::Vector{fmpz}
 
   function MapSUnitGrpZFacElem()
     return new()
@@ -660,7 +605,7 @@ end
 
 mutable struct MapSUnitGrpZ <: Map{GrpAbFinGen, FlintRationalField, HeckeMap, MapSUnitGrpZ}
   header::MapHeader{GrpAbFinGen, FlintRationalField}
-  idl::Array{fmpz, 1}
+  idl::Vector{fmpz}
 
   function MapSUnitGrpZ()
     return new()
@@ -672,73 +617,74 @@ function show(io::IO, mC::MapSUnitGrpZ)
 end
 
 @doc Markdown.doc"""
-    sunit_group_fac_elem(S::Array{fmpz, 1}) -> GrpAbFinGen, Map
-    sunit_group_fac_elem(S::Array{Integer, 1}) -> GrpAbFinGen, Map
+    sunit_group_fac_elem(S::Vector{fmpz}) -> GrpAbFinGen, Map
+    sunit_group_fac_elem(S::Vector{Integer}) -> GrpAbFinGen, Map
 
 The $S$-unit group of $Z$ supported at $S$: the group of
 rational numbers divisible only by primes in $S$.
 The second return value is the map mapping group elements to rationals
 in factored form or rationals back to group elements.
 """
-function sunit_group_fac_elem(S::Array{T, 1}) where T <: Integer
+function sunit_group_fac_elem(S::Vector{T}) where T <: Integer
   return sunit_group_fac_elem(fmpz[x for x=S])
 end
 
-function sunit_group_fac_elem(S::Array{fmpz, 1})
+function sunit_group_fac_elem(S::Vector{fmpz})
   S = coprime_base(S)  #TODO: for S-units use factor???
-  G = abelian_group(vcat([fmpz(2)], fmpz[0 for i=S]))
+  G = abelian_group(vcat(fmpz[2], fmpz[0 for i=S]))
   S = vcat(fmpz[-1], S)
 
- mp = MapSUnitGrpZFacElem()
+  mp = MapSUnitGrpZFacElem()
   mp.idl = S
 
   Sq = fmpq[x for x=S]
 
   function dexp(a::GrpAbFinGenElem)
-    return FacElem(Sq, [a.coeff[1,i] for i=1:length(S)])
+    return FacElem(Sq, fmpz[a.coeff[1,i] for i=1:length(S)])
   end
 
-  function dlog(a::fmpz)
-    g = [a>=0 ? 0 : 1]
-    g = vcat(g, [valuation(a, x) for x=S[2:end]])
-    return G(g)
-  end
-
-  function dlog(a::Integer)
-    return dlog(fmpz(a))
-  end
-
-  function dlog(a::Rational)
-    return dlog(fmpq(a))
-  end
-
-  function dlog(a::fmpq)
-    return dlog(numerator(a)) - dlog(denominator(a))
-  end
-
-  function dlog(a::FacElem)
-    return sum([e*dlog(k) for (k,e) = a.fac])
-  end
-
-  mp.header = MapHeader(G, FacElemMon(FlintQQ), dexp, dlog)
+  mp.header = MapHeader(G, FacElemMon(FlintQQ), dexp)
 
   return G, mp
 end
 
+function preimage(f::MapSUnitGrpZFacElem, a::fmpz)
+  g = Int[a>=0 ? 0 : 1]
+  S = f.idl
+  g = vcat(g, Int[valuation(a, x) for x=S[2:end]])
+  return domain(f)(g)
+end
+
+function preimage(f::MapSUnitGrpZFacElem, a::Integer)
+  return preimage(f, fmpz(a))
+end
+
+function preimage(f::MapSUnitGrpZFacElem, a::Rational)
+  return preimage(f, fmpq(a))
+end
+
+function preimage(f::MapSUnitGrpZFacElem, a::fmpq)
+  return preimage(f, numerator(a)) - preimage(f, denominator(a))
+end
+
+function preimage(f::MapSUnitGrpZFacElem, a::FacElem)
+  return sum(GrpAbFinGenElem[e*preimage(f, k) for (k,e) = a.fac])
+end
+
 @doc Markdown.doc"""
-    sunit_group(S::Array{fmpz, 1}) -> GrpAbFinGen, Map
-    sunit_group(S::Array{Integer, 1}) -> GrpAbFinGen, Map
+    sunit_group(S::Vector{fmpz}) -> GrpAbFinGen, Map
+    sunit_group(S::Vector{Integer}) -> GrpAbFinGen, Map
 
 The $S$-unit group of $Z$ supported at $S$: the group of
 rational numbers divisible only by primes in $S$.
 The second return value is the map mapping group elements to rationals
 or rationals back to group elements.
 """
-function sunit_group(S::Array{T, 1}) where T <: Integer
+function sunit_group(S::Vector{T}) where T <: Integer
   return sunit_group(fmpz[x for x=S])
 end
 
-function sunit_group(S::Array{fmpz, 1})
+function sunit_group(S::Vector{fmpz})
   u, mu = sunit_group_fac_elem(S)
 
   mp = MapSUnitGrpZ()
@@ -925,10 +871,10 @@ function factor_insert!(r::Dict{fmpz, Int}, N::fmpz, scale::Int = 1)
     end
     return r
   end
-  k, N = remove(N, f)
-  @assert k > 0
-  factor_insert!(r, N, scale)
-  factor_insert!(r, f, scale*k)
+  cp = coprime_base([N, f])
+  for i = cp
+    factor_insert!(r, i, scale*valuation(N, i))
+  end
   return r
 end
 
@@ -955,17 +901,28 @@ function _factors_trial_division(n::fmpz, np::Int = 10^5)
 
 end
 
-
 function ceil(::Type{fmpz}, a::BigFloat)
   return fmpz(ceil(BigInt, a))
+end
+
+function ceil(::Type{Int}, a::fmpq)
+  return Int(ceil(fmpz, a))
 end
 
 function floor(::Type{fmpz}, a::BigFloat)
   return fmpz(floor(BigInt, a))
 end
 
+function floor(::Type{Int}, a::fmpq)
+  return Int(floor(fmpz, a))
+end
+
 function round(::Type{fmpz}, a::BigFloat)
   return fmpz(round(BigInt, a))
+end
+
+function round(::Type{Int}, a::BigFloat)
+  return Int(round(fmpz, a))
 end
 
 /(a::BigFloat, b::fmpz) = a/BigInt(b)
@@ -1256,7 +1213,7 @@ function carmichael_lambda(n::T) where {T <: Integer}
 end
 
 @doc Markdown.doc"""
-    euler_phi_inv(n::Integer) -> Array{fmpz, 1}
+    euler_phi_inv(n::Integer) -> Vector{fmpz}
 
 The inverse of the Euler totient functions: find all $x$ s.th. $phi(x) = n$
 holds.
@@ -1266,7 +1223,7 @@ function euler_phi_inv(n::Integer)
 end
 
 @doc Markdown.doc"""
-    euler_phi_inv(n::fmpz) -> Array{fmpz, 1}
+    euler_phi_inv(n::fmpz) -> Vector{fmpz}
 
 The inverse of the Euler totient functions: find all $x$ s.th. $phi(x) = n$
 holds.
@@ -1437,7 +1394,7 @@ function iterate(B::BitsFmpz)
   return true, (b, L.len)
 end
 
-function iterate(B::BitsFmpz, s::Tuple{UInt, Int})
+@inline function iterate(B::BitsFmpz, s::Tuple{UInt, Int})
   b = s[1] >> 1
   if b == 0
     l = s[2] - 1
@@ -1465,7 +1422,18 @@ function getindex(B::BitsFmpz, i::Int)
 end
 =#
 
-function ^(a::T, n::fmpz) where {T}
+end
+
+using .BitsMod
+export bits, Limbs
+
+^(a::T, n::IntegerUnion) where {T <: RingElem} = _generic_power(a, n)
+
+^(a::NfAbsOrdIdl, n::IntegerUnion)  = _generic_power(a, n)
+
+#^(a::NfRelOrdIdl, n::IntegerUnion)  = _generic_power(a, n)
+
+function _generic_power(a, n::IntegerUnion)
   fits(Int, n) && return a^Int(n)
   if isnegative(n)
     a = inv(a)
@@ -1481,17 +1449,11 @@ function ^(a::T, n::fmpz) where {T}
   return r
 end
 
-end
-
-using .BitsMod
-export bits, Limbs
-
-
 #square-and-multiply algorithm to compute f^e mod g
-function powmod(f::T, e::fmpz, g::T) where {T}
-    #small exponent -> use powmod
+function powermod(f::T, e::fmpz, g::T) where {T}
+    #small exponent -> use powermod
     if nbits(e) <= 63
-        return powmod(f, Int(e), g)
+        return powermod(f, Int(e), g)
     else
         #go through binary representation of exponent and multiply with res
         #or (res and f)
@@ -1554,8 +1516,8 @@ end
 
 Returns a vector containing all the squarefree numbers up to $n$.
 """
-function squarefree_up_to(n::Int; coprime_to::Array{fmpz,1} = fmpz[], prime_base::Vector{fmpz} = fmpz[])
-  
+function squarefree_up_to(n::Int; coprime_to::Vector{fmpz} = fmpz[], prime_base::Vector{fmpz} = fmpz[])
+
   @assert isempty(coprime_to) || isempty(prime_base)
   if !isempty(prime_base)
     listi = Int[1]
@@ -1590,7 +1552,7 @@ function squarefree_up_to(n::Int; coprime_to::Array{fmpz,1} = fmpz[], prime_base
     end
   end
   i = 2
-  b = root(n, 2)
+  b = isqrt(n)
   lp = primes_up_to(b)
   for i = 1:length(lp)
     p2 = lp[i]^2
@@ -1634,6 +1596,14 @@ end
 #  Rounding and friends
 #
 ################################################################################
+
+Base.floor(::Type{fmpz}, x::fmpz) = x
+
+Base.ceil(::Type{fmpz}, x::fmpz) = x
+
+Base.floor(::Type{fmpz}, x::Int) = fmpz(x)
+
+Base.ceil(::Type{fmpz}, x::Int) = fmpz(x)
 
 Base.floor(::Type{fmpz}, x::fmpq) = fdiv(numerator(x), denominator(x))
 
@@ -1723,3 +1693,30 @@ function factor(a::fmpq, ::FlintIntegerRing)
   end
   return fn
 end
+
+#missing in Nemo...
+Hecke.clog(a::Int, b::Int) = clog(fmpz(a), b)
+
+################################################################################
+#
+#   Support
+#
+################################################################################
+
+function support(d::fmpz)
+  return collect(keys(factor(d).fac))
+end
+
+function support(a::fmpq)
+  d = denominator(a)
+  n = numerator(a)
+  res = fmpz[]
+  for (p, _) in factor(d)
+    push!(res, p)
+  end
+  for (p, _) in factor(n)
+    push!(res, p)
+  end
+  return res
+end
+

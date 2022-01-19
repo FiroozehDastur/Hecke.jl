@@ -58,18 +58,6 @@ function _set_maximal_order(K::NfAbsNS, O::NfAbsOrd{NfAbsNS, NfAbsNSElem})
   K.O = O
 end
 
-function _get_nf_equation_order(K::NfAbsNS)
-  if isdefined(K, :equation_order)
-    return K.equation_order::NfAbsOrd{NfAbsNS, NfAbsNSElem}
-  else
-    throw(AccessorNotSetError())
-  end
-end
-
-function _set_nf_equation_order(K::NfAbsNS, O)
-  K.equation_order = O
-end
-
 ################################################################################
 #
 #  Copy
@@ -307,7 +295,7 @@ function Base.div(a::NfAbsNSElem, b::NfAbsNSElem)
   return a * inv(b)
 end
 
-Nemo.divexact(a::NfAbsNSElem, b::NfAbsNSElem) = div(a, b)
+Nemo.divexact(a::NfAbsNSElem, b::NfAbsNSElem; check::Bool = false) = div(a, b)
 
 ################################################################################
 #
@@ -520,7 +508,7 @@ function minpoly_dense(a::NfAbsNSElem)
   Qt, _ = PolynomialRing(FlintQQ,"t", cached=false)
   while true
     if n % (i-1) == 0 && rank(M) < i
-      N = nullspace(sub(M, 1:i, 1:ncols(M))')
+      N = nullspace(transpose(sub(M, 1:i, 1:ncols(M))))
       @assert N[1] == 1
       v = Vector{fmpq}(undef, i)
       for j in 1:i
@@ -528,7 +516,7 @@ function minpoly_dense(a::NfAbsNSElem)
       end
       #f = Qt([N[2][j, 1] for j=1:i])
       f = Qt(v)
-      return f*inv(lead(f))
+      return f*inv(leading_coefficient(f))
     end
     z *= a
     elem_to_mat_row!(M, i+1, z)
@@ -717,51 +705,52 @@ end
 #
 ################################################################################
 
-function isunivariate(f::fmpq_mpoly)
-  deg = 0
-  var = 0
-  for i = 1:length(f)
-    exps = exponent_vector(f, i)
-    for j = 1:length(exps)
-      if !iszero(exps[j])
-        if iszero(var)
-          var = j
-          deg = exps[j]
-        elseif var != j
-          return false, fmpq_poly()
-        elseif deg < exps[j]
-          deg = exps[j]
-        end
-      end
-    end
-  end
+#function isunivariate(f::fmpq_mpoly)
+#  deg = 0
+#  var = 0
+#  for i = 1:length(f)
+#    exps = exponent_vector(f, i)
+#    for j = 1:length(exps)
+#      if !iszero(exps[j])
+#        if iszero(var)
+#          var = j
+#          deg = exps[j]
+#        elseif var != j
+#          return false, fmpq_poly()
+#        elseif deg < exps[j]
+#          deg = exps[j]
+#        end
+#      end
+#    end
+#  end
+#
+#  Qx = PolynomialRing(FlintQQ, "x")[1]
+#  coeffs = Vector{fmpq}(undef, deg+1)
+#  if iszero(deg)
+#    if iszero(f)
+#      coeffs[1] = 0
+#      return true, Qx(coeffs)
+#    end
+#    #f is a constant
+#    coeffs[1] = coeff(f, 1)
+#    return true, Qx(coeffs)
+#  end
+#  for i = 1:length(f)
+#    exps = exponent_vector(f, i)
+#    coeffs[exps[var]+1] = coeff(f, i)
+#  end
+#  for i = 1:length(coeffs)
+#    if !isassigned(coeffs, i)
+#      coeffs[i] = fmpq(0)
+#    end
+#  end
+#  return true, Qx(coeffs)
+#
+#end
 
-  Qx = PolynomialRing(FlintQQ, "x")[1]
-  coeffs = Vector{fmpq}(undef, deg+1)
-  if iszero(deg)
-    if iszero(f)
-      coeffs[1] = 0
-      return true, Qx(coeffs)
-    end
-    #f is a constant
-    coeffs[1] = coeff(f, 1)
-    return true, Qx(coeffs)
-  end
-  for i = 1:length(f)
-    exps = exponent_vector(f, i)
-    coeffs[exps[var]+1] = coeff(f, i)
-  end
-  for i = 1:length(coeffs)
-    if !isassigned(coeffs, i)
-      coeffs[i] = fmpq(0)
-    end
-  end
-  return true, Qx(coeffs)
-
-end
-
-# TODO: Preallocate the exps array
-function msubst(f::fmpq_mpoly, v::Array{T, 1}) where {T}
+# TODO: - Preallocate the exps array
+#       - Do we still need this?
+function msubst(f::fmpq_mpoly, v::Vector{T}) where {T}
   n = length(v)
   @assert n == nvars(parent(f))
   variables = vars(f)
@@ -769,7 +758,8 @@ function msubst(f::fmpq_mpoly, v::Array{T, 1}) where {T}
     return zero(fmpq) * one(parent(v[1]))
   end
   if length(variables) == 1
-    fl, p = isunivariate(f)
+    fl = isunivariate(f)
+    p = to_univariate(Globals.Qx, f)
     @assert fl
     #I need the variable. Awful
     vect_exp = exponent_vector(variables[1], 1)
@@ -830,7 +820,7 @@ function simple_extension(K::NfAbsNS; cached::Bool = true, check = true, simplif
   g = gens(K)
   if n == 1
     #The extension is already simple
-    f = isunivariate(K.pol[1])[2]
+    f = to_unvariate(Globals.Qx, K.pol[1])
     Ka, a = NumberField(f, "a", cached = cached, check = check)
     mp = NfAbsToNfAbsNS(Ka, K, g[1], [a])
     return Ka, mp
@@ -868,7 +858,7 @@ function simple_extension(K::NfAbsNS; cached::Bool = true, check = true, simplif
   for i = 1:n
     elem_to_mat_row!(N, i, g[i])
   end
-  s = solve(M', N')
+  s = solve(transpose(M), transpose(N))
   b = basis(Ka)
   emb = Vector{nf_elem}(undef, n)
   for i = 1:n
@@ -915,14 +905,14 @@ end
 ################################################################################
 
 @doc Markdown.doc"""
-    number_field(f::Array{fmpq_poly, 1}, s::String="_\$") -> NfAbsNS
+    number_field(f::Vector{fmpq_poly}, s::String="_\$") -> NfAbsNS
 
 Let $f = (f_1, \ldots, f_n)$ be univariate rational polynomials, then
 we construct
  $$K = Q[t_1, \ldots, t_n]/\langle f_1(t_1), \ldots, f_n(t_n)\rangle .$$
 The ideal must be maximal, however, this is not tested.
 """
-function NumberField(f::Array{fmpq_poly, 1}, s::String="_\$"; cached::Bool = false, check::Bool = true)
+function NumberField(f::Vector{fmpq_poly}, s::String="_\$"; cached::Bool = false, check::Bool = true)
   n = length(f)
   if occursin('#', s)
     lS = Symbol[Symbol(replace(s, "#"=>"$i")) for i=1:n]
@@ -932,17 +922,17 @@ function NumberField(f::Array{fmpq_poly, 1}, s::String="_\$"; cached::Bool = fal
   return NumberField(f, lS, cached = cached, check = check)
 end
 
-function NumberField(f::Array{fmpq_poly, 1}, s::Array{String, 1}; cached::Bool = false, check::Bool = true)
+function NumberField(f::Vector{fmpq_poly}, s::Vector{String}; cached::Bool = false, check::Bool = true)
   lS = Symbol[Symbol(x) for x=s]
   return NumberField(f, lS, cached = cached, check = check)
 end
 
-function NumberField(f::Array{fmpq_poly, 1}, S::Array{Symbol, 1}; cached::Bool = false, check::Bool = true)
+function NumberField(f::Vector{fmpq_poly}, S::Vector{Symbol}; cached::Bool = false, check::Bool = true)
   length(S) == length(f) || error("number of names must match the number of polynomials")
   n = length(S)
   s = var(parent(f[1]))
   Qx, x = PolynomialRing(FlintQQ, ["$s$i" for i=1:n], cached = false)
-  K = NfAbsNS(fmpq_mpoly[f[i](x[i]) for i=1:n], S, cached)
+  K = NfAbsNS(f, fmpq_mpoly[f[i](x[i]) for i=1:n], S, cached)
   K.degrees = [degree(f[i]) for i in 1:n]
   K.degree = prod(K.degrees)
   if check
@@ -953,17 +943,17 @@ function NumberField(f::Array{fmpq_poly, 1}, S::Array{Symbol, 1}; cached::Bool =
   return K, gens(K)
 end
 
-function NumberField(f::Array{fmpz_poly, 1}, s::String="_\$"; cached::Bool = false, check::Bool = true)
+function NumberField(f::Vector{fmpz_poly}, s::String="_\$"; cached::Bool = false, check::Bool = true)
   Qx, _ = PolynomialRing(FlintQQ, var(parent(f[1])), cached = false)
   return NumberField(fmpq_poly[Qx(x) for x = f], s, cached = cached, check = check)
 end
 
-function NumberField(f::Array{fmpz_poly, 1}, s::Array{String, 1}; cached::Bool = false, check::Bool = true)
+function NumberField(f::Vector{fmpz_poly}, s::Vector{String}; cached::Bool = false, check::Bool = true)
   Qx, _ = PolynomialRing(FlintQQ, var(parent(f[1])), cached = false)
   return NumberField(fmpq_poly[Qx(x) for x = f], s, cached = cached, check = check)
 end
 
-function NumberField(f::Array{fmpz_poly, 1}, S::Array{Symbol, 1}; cached::Bool = false, check::Bool = true)
+function NumberField(f::Vector{fmpz_poly}, S::Vector{Symbol}; cached::Bool = false, check::Bool = true)
   Qx, _ = PolynomialRing(FlintQQ, var(parent(f[1])), cached = false)
   return NumberField(fmpq_poly[Qx(x) for x = f], S, cached = cached, check = check)
 end
@@ -1007,6 +997,10 @@ function (K::NfAbsNS)(a::fmpq_mpoly, red::Bool = true)
   return z
 end
 
+function (K::NfAbsNS)(a::Vector{fmpq})
+  return dot(a, basis(K))
+end
+
 (K::NfAbsNS)(a::Integer) = K(parent(K.pol[1])(a))
 
 (K::NfAbsNS)(a::Rational{T}) where {T <: Integer} = K(parent(K.pol[1])(a))
@@ -1027,7 +1021,7 @@ function (K::NfAbsNS)(a::NfAbsNSElem)
 end
 
 function show_sparse_cyclo(io::IO, a::NfAbsNS)
-  print(io, "Sparse cyclotomic field of order $(get_special(a, :cyclo))")
+  print(io, "Sparse cyclotomic field of order $(get_attribute(a, :cyclo))")
 end
 
 function cyclotomic_field(::Type{NonSimpleNumField}, n::Int; cached::Bool = false)
@@ -1036,7 +1030,7 @@ function cyclotomic_field(::Type{NonSimpleNumField}, n::Int; cached::Bool = fals
   lp = [cyclotomic(Int(p^k), x) for (p,k) = lf.fac]
   ls = ["z($n)_$(p^k)" for (p,k) = lf.fac]
   C, g = number_field(lp, ls, cached = cached, check = false)
-  set_special(C, :show => show_sparse_cyclo, :cyclo => n)
+  set_attribute!(C, :show => show_sparse_cyclo, :cyclo => n)
   return C, g
 end
 
@@ -1167,7 +1161,7 @@ function factor(f::PolyElem{NfAbsNSElem})
   if degree(f) == 0
     r = Fac{typeof(f)}()
     r.fac = Dict{typeof(f), Int}()
-    r.unit = Kx(lead(f))
+    r.unit = Kx(leading_coefficient(f))
     return r
   end
 
@@ -1182,12 +1176,12 @@ function factor(f::PolyElem{NfAbsNSElem})
   if degree(f) == 1
     multip = div(degree(f_orig), degree(f))
     r = Fac{typeof(f)}()
-    r.fac = Dict{typeof(f), Int}(f*(1//lead(f)) => multip)
-    r.unit = one(Kx) * lead(f_orig)
+    r.fac = Dict{typeof(f), Int}(f*(1//leading_coefficient(f)) => multip)
+    r.unit = one(Kx) * leading_coefficient(f_orig)
     return r
   end
 
-  f = f*(1//lead(f))
+  f = f*(1//leading_coefficient(f))
 
   k = 0
   g = f
@@ -1220,7 +1214,7 @@ function factor(f::PolyElem{NfAbsNSElem})
   if f != f_orig
     error("factoring with mult not implemented")
   end
-  r.unit = one(Kx)* lead(f_orig)//prod((lead(p) for (p, e) in r))
+  r.unit = one(Kx)* leading_coefficient(f_orig)//prod((leading_coefficient(p) for (p, e) in r))
   return r
 end
 

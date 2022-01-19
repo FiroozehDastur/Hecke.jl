@@ -1,6 +1,6 @@
 site_name:           'Hecke'
 repo_name:           'Hecke.jl'
-#repo_url:            'https://github.com/thofma/Hecke.jl'
+repo_url:            'https://github.com/thofma/Hecke.jl'
 site_description:    'Hecke'
 site_author:         'Tommy Hofmann'
 
@@ -18,6 +18,8 @@ extra:
   social:
     - icon: 'fontawesome/brands/github-alt'
       link: 'https://github.com/thofma'
+  version:
+    provider: mike
 
 extra_css:
   - 'assets/Documenter.css'
@@ -28,7 +30,7 @@ extra_javascript:
   - https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS_HTML
   - assets/mathjaxhelper.js
   - https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js
-  - javascripts/config.js
+    #- javascripts/config.js
 
 markdown_extensions:
   - toc:
@@ -66,10 +68,17 @@ nav:
   - About: 'index.md'
   - Documentation:
     - Number fields:
-      - Introduction: 'number_fields/intro.md'
-      - Creation and basics: 'number_fields/basics.md'
-      - Elements: 'number_fields/elements.md'
-      - Internals:    'number_fields/internal.md'
+      - Introduction:            'number_fields/intro.md'
+      - Number field operations: 'number_fields/fields.md'
+      - Elements:                'number_fields/elements.md'
+      - Complex embeddings:      'number_fields/complex_embeddings.md'
+      - Internals:               'number_fields/internal.md'
+    - Function fields:
+      - Introduction: 'function_fields/intro.md'
+      - Creation and basics: 'function_fields/basics.md'
+      - Elements: 'function_fields/elements.md'
+      - Internals:    'function_fields/internal.md'
+      - Degree localization: 'function_fields/degree_localization.md'
     - Orders:
       - Introduction: 'orders/introduction.md'
       - Basics:           orders/orders.md
@@ -82,10 +91,26 @@ nav:
       - Lattices: 'quad_forms/lattices.md'
     - Abelian groups:
       - Introduction:     abelian/introduction.md
+      - Elements:     abelian/elements.md
+      - Maps:     abelian/maps.md
+      - Structural Computations:     abelian/structural.md
     - Class fields:
       - Introduction:     class_fields/intro.md
     - Misc:
       - Factored Elements: FacElem.md
       - Sparse Linear Algebra: sparse/intro.md
-  - Source:
-      - 'https://www.github.com/thofma/Hecke.jl'
+      - Pseudo-Matrices: pmat/introduction.md
+      - Misc: misc.md
+    - Developer:
+      - Testing: 'dev/test.md'
+  - Examples: 'examples.md'
+    #- Source: 'https://www.github.com/thofma/Hecke.jl'
+
+plugins:
+  - mike:
+      # these fields are all optional; the defaults are as below...
+      version_selector: true   # set to false to leave out the version selector
+      css_dir: css             # the directory to put the version selector's CSS
+      javascript_dir: js       # the directory to put the version selector's JS
+      canonical_version: null  # the version for <link rel="canonical">; `null`
+                               # uses the version specified via `mike deploy`

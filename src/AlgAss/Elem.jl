@@ -6,6 +6,14 @@ export reduced_charpoly
 #
 ################################################################################
 
+function AbstractAlgebra.promote_rule(U::Type{<:AbsAlgAssElem{T}}, ::Type{S}) where {T, S}
+  if AbstractAlgebra.promote_rule(T, S) === T
+    return U
+  else
+    return Union{}
+  end
+end
+
 parent_type(::Type{AlgAssElem{T, S}}) where {T, S} = S
 
 parent_type(::Type{AlgGrpElem{T, S}}) where {T, S} = S
@@ -16,7 +24,7 @@ function (K::AnticNumberField)(a::AbsAlgAssElem{nf_elem})
   @assert K == base_ring(parent(a))
   @assert has_one(parent(a))
   o = one(parent(a))
-  
+
   if iszero(a)
     return zero(K)
   end
@@ -24,7 +32,7 @@ function (K::AnticNumberField)(a::AbsAlgAssElem{nf_elem})
   i = findfirst(!iszero, o.coeffs)
 
   fl, c = divides(a.coeffs[i], o.coeffs[i])
-  
+
   if fl
     if c * o == a
       return c
@@ -38,7 +46,7 @@ function (K::FlintRationalField)(a::AbsAlgAssElem{fmpq})
   @assert K == base_ring(parent(a))
   @assert has_one(parent(a))
   o = one(parent(a))
-  
+
   if iszero(a)
     return zero(K)
   end
@@ -46,7 +54,7 @@ function (K::FlintRationalField)(a::AbsAlgAssElem{fmpq})
   i = findfirst(!iszero, o.coeffs)
 
   fl, c = divides(a.coeffs[i], o.coeffs[i])
-  
+
   if fl
     if c * o == a
       return c
@@ -120,7 +128,7 @@ end
 Returns $-a$.
 """
 function -(a::AbsAlgAssElem{T}) where {T}
-  v = T[ -coeffs(a, copy = false)[i] for i = 1:dim(parent(a)) ]
+  v = T[ -coefficients(a, copy = false)[i] for i = 1:dim(parent(a)) ]
   return parent(a)(v)
 end
 
@@ -137,9 +145,9 @@ Return $a + b$.
 """
 function +(a::AbsAlgAssElem{T}, b::AbsAlgAssElem{T}) where {T}
   parent(a) != parent(b) && error("Parents don't match.")
-  v = Array{T, 1}(undef, dim(parent(a)))
+  v = Vector{T}(undef, dim(parent(a)))
   for i = 1:dim(parent(a))
-    v[i] = coeffs(a, copy = false)[i] + coeffs(b, copy = false)[i]
+    v[i] = coefficients(a, copy = false)[i] + coefficients(b, copy = false)[i]
   end
   return parent(a)(v)
 end
@@ -151,9 +159,9 @@ Return $a - b$.
 """
 function -(a::AbsAlgAssElem{T}, b::AbsAlgAssElem{T}) where {T}
   parent(a) != parent(b) && error("Parents don't match.")
-  v = Array{T, 1}(undef, dim(parent(a)))
+  v = Vector{T}(undef, dim(parent(a)))
   for i = 1:dim(parent(a))
-    v[i] = coeffs(a, copy = false)[i] - coeffs(b, copy = false)[i]
+    v[i] = coefficients(a, copy = false)[i] - coefficients(b, copy = false)[i]
   end
   return parent(a)(v)
 end
@@ -171,11 +179,11 @@ function *(a::AlgAssElem{T}, b::AlgAssElem{T}) where {T}
   c = A()
   t = base_ring(A)()
   for i = 1:n
-    if iszero(coeffs(a, copy = false)[i])
+    if iszero(coefficients(a, copy = false)[i])
       continue
     end
     for j = 1:n
-      t = coeffs(a, copy = false)[i]*coeffs(b, copy = false)[j]
+      t = coefficients(a, copy = false)[i]*coefficients(b, copy = false)[j]
       if iszero(t)
         continue
       end
@@ -200,9 +208,17 @@ function *(a::AlgGrpElem{T, S}, b::AlgGrpElem{T, S}) where {T, S}
   for i in 1:d
     v[i] = zero(base_ring(A))
   end
+  t = zero(base_ring(A))
+  mt = multiplication_table(A, copy = false)
+  acoeff = coefficients(a, copy = false)
+  bcoeff = coefficients(b, copy = false)
   for i in 1:d
+    if iszero(acoeff[i])
+      continue
+    end
     for j in 1:d
-      v[multiplication_table(A, copy = false)[i, j]] += coeffs(a, copy = false)[i] * coeffs(b, copy = false)[j]
+      k = mt[i, j]
+      v[k] = addmul!(v[k], acoeff[i], bcoeff[j], t)
     end
   end
   return A(v)
@@ -215,15 +231,15 @@ end
 ################################################################################
 
 function zero!(a::AlgGrpElem)
-  for i = 1:length(coeffs(a, copy = false))
-    a.coeffs[i] = zero!(coeffs(a, copy = false)[i])
+  for i = 1:length(coefficients(a, copy = false))
+    a.coeffs[i] = zero!(coefficients(a, copy = false)[i])
   end
   return a
 end
 
 function zero!(a::AlgAssElem)
-  for i = 1:length(coeffs(a, copy = false))
-    a.coeffs[i] = zero!(coeffs(a, copy = false)[i])
+  for i = 1:length(coefficients(a, copy = false))
+    a.coeffs[i] = zero!(coefficients(a, copy = false)[i])
   end
   return a
 end
@@ -241,7 +257,7 @@ function add!(c::AbsAlgAssElem{T}, a::AbsAlgAssElem{T}, b::AbsAlgAssElem{T}) whe
   end
 
   for i = 1:d
-    c.coeffs[i] = add!(coeffs(c, copy = false)[i], coeffs(a, copy = false)[i], coeffs(b, copy = false)[i])
+    c.coeffs[i] = add!(coefficients(c, copy = false)[i], coefficients(a, copy = false)[i], coefficients(b, copy = false)[i])
   end
 
   return c
@@ -252,7 +268,7 @@ function addeq!(b::AbsAlgAssElem{T}, a::AbsAlgAssElem{T}) where {T}
   A = parent(a)
 
   for i = 1:dim(A)
-    b.coeffs[i] = addeq!(coeffs(b, copy = false)[i], coeffs(a, copy = false)[i])
+    b.coeffs[i] = addeq!(coefficients(b, copy = false)[i], coefficients(a, copy = false)[i])
   end
 
   return b
@@ -268,7 +284,7 @@ function mul!(c::AbsAlgAssElem{T}, a::AbsAlgAssElem{T}, b::T) where {T}
   end
 
   for i = 1:dim(parent(a))
-    c.coeffs[i] = mul!(coeffs(c, copy = false)[i], coeffs(a, copy = false)[i], b)
+    c.coeffs[i] = mul!(coefficients(c, copy = false)[i], coefficients(a, copy = false)[i], b)
   end
   return c
 end
@@ -286,7 +302,7 @@ function mul!(c::AbsAlgAssElem{T}, a::AbsAlgAssElem{T}, b::Union{ Int, fmpz }) w
 
   bfmpq = fmpq(b, 1)
   for i = 1:dim(parent(a))
-    c.coeffs[i] = mul!(coeffs(c, copy = false)[i], coeffs(a, copy = false)[i], bfmpq)
+    c.coeffs[i] = mul!(coefficients(c, copy = false)[i], coefficients(a, copy = false)[i], bfmpq)
   end
   return c
 end
@@ -304,7 +320,7 @@ function mul!(c::AlgGrpElem{T, S}, a::AlgGrpElem{T, S}, b::AlgGrpElem{T, S}) whe
     return z
   end
 
-  v = coeffs(c, copy = false)
+  v = coefficients(c, copy = false)
 
   for i in 1:d
     v[i] = zero(base_ring(A))
@@ -312,7 +328,7 @@ function mul!(c::AlgGrpElem{T, S}, a::AlgGrpElem{T, S}, b::AlgGrpElem{T, S}) whe
 
   for i in 1:d
     for j in 1:d
-      v[multiplication_table(A, copy = false)[i, j]] += coeffs(a, copy = false)[i] * coeffs(b, copy = false)[j]
+      v[multiplication_table(A, copy = false)[i, j]] += coefficients(a, copy = false)[i] * coefficients(b, copy = false)[j]
     end
   end
 
@@ -332,21 +348,21 @@ function mul!(c::AlgAssElem{T}, a::AlgAssElem{T}, b::AlgAssElem{T}) where {T}
   end
 
   for k in 1:n
-    c.coeffs[k] = zero!(coeffs(c, copy = false)[k])
+    c.coeffs[k] = zero!(coefficients(c, copy = false)[k])
   end
 
   for i = 1:n
-    if iszero(coeffs(a, copy = false)[i])
+    if iszero(coefficients(a, copy = false)[i])
       continue
     end
     for j = 1:n
-      t = coeffs(a, copy = false)[i]*coeffs(b, copy = false)[j]
+      t = coefficients(a, copy = false)[i]*coefficients(b, copy = false)[j]
       if iszero(t)
         continue
       end
       for k = 1:n
         s = mul!(s, multiplication_table(A, copy = false)[i, j, k], t)
-        c.coeffs[k] = add!(coeffs(c, copy = false)[k], coeffs(c, copy = false)[k], s)
+        c.coeffs[k] = add!(coefficients(c, copy = false)[k], coefficients(c, copy = false)[k], s)
         #c.coeffs[k] += A.mult_table[i, j, k]*t
       end
     end
@@ -376,7 +392,7 @@ function isdivisible(a::AbsAlgAssElem, b::AbsAlgAssElem, action::Symbol)
 
   A = parent(a)
   M = transpose(representation_matrix(b, action))
-  va = matrix(base_ring(A), dim(A), 1, coeffs(a))
+  va = matrix(base_ring(A), dim(A), 1, coefficients(a))
   # a could be a zero divisor, so there will not be a unique solution
   Ma = hcat(M, va)
   r = rref!(Ma)
@@ -418,11 +434,11 @@ divexact_left(a::AbsAlgAssElem, b::AbsAlgAssElem) = divexact(a, b, :left)
 #
 ################################################################################
 
-function *(a::AbsAlgAssElem{S}, b::T) where {T <: RingElem, S <: RingElem}
-  return typeof(a)(parent(a), coeffs(a, copy = false).* Ref(b))
+function *(a::AbsAlgAssElem{S}, b::S) where {S <: RingElem}
+  return typeof(a)(parent(a), coefficients(a, copy = false).* Ref(b))
 end
 
-*(b::T, a::AbsAlgAssElem{S}) where {T <: RingElem,  S <: RingElem } = a*b
+*(b::S, a::AbsAlgAssElem{S}) where {S <: RingElem } = a*b
 
 *(a::AbsAlgAssElem{T}, b::Integer) where {T} = a*base_ring(parent(a))(b)
 
@@ -575,12 +591,12 @@ end
 
 (A::AlgGrp{T, S, R})() where {T, S, R} = AlgGrpElem{T, typeof(A)}(A)
 
-function (A::AlgAss{T})(c::Array{T, 1}) where {T}
+function (A::AlgAss{T})(c::Vector{T}) where {T}
   length(c) != dim(A) && error("Dimensions don't match.")
   return AlgAssElem{T, AlgAss{T}}(A, deepcopy(c))
 end
 
-function (A::AlgQuat{T})(c::Array{T, 1}) where {T}
+function (A::AlgQuat{T})(c::Vector{T}) where {T}
   length(c) != dim(A) && error("Dimensions don't match.")
   return AlgAssElem{T, AlgQuat{T}}(A, deepcopy(c))
 end
@@ -590,7 +606,7 @@ function Base.getindex(A::AbsAlgAss{T}, i::Int) where {T}
   basis(A)[i]
 end
 
-#function (A::AlgGrp{T, S, R})(c::Array{T, 1}) where {T, S, R}
+#function (A::AlgGrp{T, S, R})(c::Vector{T}) where {T, S, R}
 #  length(c) != dim(A) && error("Dimensions don't match.")
 #  return AlgGrpElem{T, typeof(A)}(A, deepcopy(c))
 #end
@@ -611,21 +627,21 @@ function (A::AlgGrp)(a::AlgGrpElem)
 end
 
 # For polynomial substitution
-function (A::AlgAss)(a::Union{ Int, fmpz })
-  return a*one(A)
+for T in subtypes(AbsAlgAss)
+  @eval begin
+    function (A::$T)(a::Union{Int, fmpz})
+      return A(base_ring(A)(a))
+    end
+
+    function (A::$T{S})(a::S) where {S}
+      return a*one(A)
+    end
+  end
 end
 
-function (A::AlgGrp)(a::Union{ Int, fmpz })
-  return a*one(A)
-end
-
-function (A::AlgAss{T})(a::T) where T
-  return a*one(A)
-end
-
-function (A::AlgGrp{T, S, U})(a::T) where { T, S, U }
-  return a*one(A)
-end
+#function (A::AbsAlgAss{T})(a::T) where T
+#  return a*one(A)
+#end
 
 ################################################################################
 #
@@ -635,12 +651,12 @@ end
 
 function show(io::IO, a::AbsAlgAssElem)
   if get(io, :compact, false)
-    print(io, coeffs(a, copy = false))
+    print(io, coefficients(a, copy = false))
   else
     print(io, "Element of ")
     print(io, parent(a))
     print(io, " with coefficients ")
-    print(io, coeffs(a, copy = false))
+    print(io, coefficients(a, copy = false))
   end
 end
 
@@ -671,7 +687,7 @@ Base.copy(a::AbsAlgAssElem) = deepcopy(a)
 ################################################################################
 
 function Base.hash(a::AbsAlgAssElem{T}, h::UInt) where {T}
-  return Base.hash(coeffs(a, copy = false), h)
+  return Base.hash(coefficients(a, copy = false), h)
 end
 
 ################################################################################
@@ -687,7 +703,7 @@ Returns `true` if $a$ and $b$ are equal and `false` otherwise.
 """
 function ==(a::AbsAlgAssElem{T}, b::AbsAlgAssElem{T}) where {T}
   parent(a) != parent(b) && return false
-  return coeffs(a, copy = false) == coeffs(b, copy = false)
+  return coefficients(a, copy = false) == coefficients(b, copy = false)
 end
 
 ################################################################################
@@ -767,7 +783,7 @@ end
 
 function elem_to_mat_row!(M::MatElem{T}, i::Int, a::AbsAlgAssElem{T}) where T
   for c = 1:ncols(M)
-    M[i, c] = deepcopy(coeffs(a, copy = false)[c])
+    M[i, c] = deepcopy(coefficients(a, copy = false)[c])
   end
   return nothing
 end
@@ -815,13 +831,13 @@ function representation_matrix(a::AlgGrpElem, action::Symbol=:left)
   if action==:left
     for i = 1:dim(A)
       for j = 1:dim(A)
-        M[i, multiplication_table(A, copy = false)[j, i]] = deepcopy(coeffs(a, copy = false)[j])
+        M[i, multiplication_table(A, copy = false)[j, i]] = deepcopy(coefficients(a, copy = false)[j])
       end
     end
   elseif action==:right
     for i = 1:dim(A)
       for j = 1:dim(A)
-        M[i, multiplication_table(A, copy = false)[i, j]] = deepcopy(coeffs(a, copy = false)[j])
+        M[i, multiplication_table(A, copy = false)[i, j]] = deepcopy(coefficients(a, copy = false)[j])
       end
     end
   else
@@ -834,23 +850,23 @@ function representation_matrix!(a::Union{ AlgAssElem, AlgMatElem }, M::MatElem, 
   A = parent(a)
   if action==:left
     for i = 1:dim(A)
-      if iszero(coeffs(a, copy = false)[i])
+      if iszero(coefficients(a, copy = false)[i])
         continue
       end
       for j = 1:dim(A)
         for k = 1:dim(A)
-          M[j, k] += coeffs(a, copy = false)[i]*multiplication_table(A, copy = false)[i, j, k]
+          M[j, k] += coefficients(a, copy = false)[i]*multiplication_table(A, copy = false)[i, j, k]
         end
       end
     end
   elseif action==:right
     for i = 1:dim(A)
-      if iszero(coeffs(a, copy = false)[i])
+      if iszero(coefficients(a, copy = false)[i])
         continue
       end
       for j = 1:dim(A)
         for k = 1:dim(A)
-          M[j, k] += coeffs(a, copy = false)[i]*multiplication_table(A, copy = false)[j, i, k]
+          M[j, k] += coefficients(a, copy = false)[i]*multiplication_table(A, copy = false)[j, i, k]
         end
       end
     end
@@ -876,7 +892,7 @@ end
 isone(a::AbsAlgAssElem) = a == one(parent(a))
 
 function iszero(a::AbsAlgAssElem)
-  return all(i -> iszero(i), coeffs(a, copy = false))
+  return all(i -> iszero(i), coefficients(a, copy = false))
 end
 
 ################################################################################
@@ -899,7 +915,7 @@ function tr(x::AbsAlgAssElem{T}) where T
   _assure_trace_basis(A)
   tr=zero(base_ring(A))
   for i=1:dim(A)
-    tr = add!(tr, tr, coeffs(x, copy = false)[i]*A.trace_basis_elem[i])
+    tr = add!(tr, tr, coefficients(x, copy = false)[i]*A.trace_basis_elem[i])
   end
   return tr
 end
@@ -1031,11 +1047,11 @@ end
 ################################################################################
 
 @doc Markdown.doc"""
-    coeffs(a::AbsAlgAbsElem; copy::Bool = true) -> Vector{RingElem}
+    coefficients(a::AbsAlgAbsElem; copy::Bool = true) -> Vector{RingElem}
 
 Returns the coefficients of $a$ in the basis of `algebra(a)`.
 """
-function coeffs(a::AbsAlgAssElem; copy::Bool = true)
+function coefficients(a::AbsAlgAssElem; copy::Bool = true)
   if copy
     return deepcopy(a.coeffs)
   end
@@ -1049,5 +1065,5 @@ end
 ################################################################################
 
 function denominator(x::AbsAlgAssElem)
-  return lcm([ denominator(y) for y in coeffs(x, copy = false) ])
+  return lcm([ denominator(y) for y in coefficients(x, copy = false) ])
 end

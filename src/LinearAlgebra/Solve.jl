@@ -47,12 +47,12 @@ function rand(A::Generic.MatSpace{nf_elem}, U::AbstractArray)
 end
 
 @doc Markdown.doc"""
-    modular_lift(ap::Array{fq_nmod_mat, 1}, me::modular_env) -> Array
+    modular_lift(ap::Vector{fq_nmod_mat}, me::modular_env) -> Array
 
 Given an array of matrices as computed by \code{modular_proj},
 compute a global pre-image using some efficient CRT.
 """
-function modular_lift(ap::Array{fq_nmod_mat, 1}, me::modular_env)
+function modular_lift(ap::Vector{fq_nmod_mat}, me::modular_env)
   A = zero_matrix(me.K, nrows(ap[1]), ncols(ap[1]))
   for i=1:nrows(A)
     for j=1:ncols(A)
@@ -107,13 +107,20 @@ function rational_reconstruction2(A::Generic.Mat{nf_elem}, M::fmpz)
   for i=1:nrows(A)
     for j=1:ncols(A)
       a = A[i,j]*d
+      if degree(parent(a)) == 1
+        a_len = 1
+      elseif degree(parent(a)) == 2
+        a_len = 2
+      else
+        a_len = a.elem_length
+      end
       mod_sym!(a, M)
-      if all(i->small_coeff(a, sM, i), 1:a.elem_length)
+      if all(i->small_coeff(a, sM, i), 1:a_len)
         B[i,j] = a*di
       else
         n, dn = algebraic_reconstruction(a, M)
         d*=dn
-        if any(i->!small_coeff(d, sM, i), 1:a.elem_length)
+        if any(i->!small_coeff(d, sM, i), 1:a_len)
           println("early $i $j abort")
           return false, B
         end
@@ -189,7 +196,7 @@ function algebraic_split(a::nf_elem)
 end
 
 #function denominator_ideal(M::Generic.MatSpaceElem{nf_elem}, den::nf_elem)
-function denominator_ideal(M::Array{nf_elem, 1}, den::nf_elem)
+function denominator_ideal(M::Vector{nf_elem}, den::nf_elem)
   k = parent(M[1,1])
   zk = maximal_order(k)
   _, d = integral_split(M[1]//den * zk)

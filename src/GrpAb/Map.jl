@@ -55,12 +55,39 @@ function haspreimage(M::GrpAbFinGenMap, a::GrpAbFinGenElem)
 
   m = vcat(M.map, rels(codomain(M)))
   fl, p = can_solve_with_solution(m, a.coeff, side = :left)
+
   if fl
     return true, GrpAbFinGenElem(domain(M), view(p, 1:1, 1:ngens(domain(M))))
   else
     return false, id(domain(M))
   end
 end
+
+function haspreimage(M::GrpAbFinGenMap, a::Vector{GrpAbFinGenElem})
+  if isdefined(M, :imap)
+    return true, map(x->preimage(M, x), a)
+  end
+
+  m = vcat(M.map, rels(codomain(M)))
+  G = domain(M)
+  if isdefined(G, :exponent) && fits(Int, G.exponent) && isprime(G.exponent)
+    e = G.exponent
+    RR = GF(Int(e))
+    fl, p = can_solve_with_solution(map_entries(RR, m), map_entries(RR, vcat([x.coeff for x = a])), side = :left)
+    p = map_entries(lift, p)
+  else
+    fl, p = can_solve_with_solution(m, vcat([x.coeff for x = a]), side = :left)
+  end
+
+  if fl
+    s = [GrpAbFinGenElem(domain(M), p[i, 1:ngens(domain(M))]) for i=1:length(a)]
+    # @assert all(i->M(s[i]) == a[i], 1:length(a))
+    return fl, s
+  else
+    return false, GrpAbFinGenElem[id(domain(M))]
+  end
+end
+
 
 
 # Note that a map can be a partial function. The following function
@@ -94,11 +121,11 @@ end
 id_hom(G::GrpAbFinGen) = hom(G, G, identity_matrix(FlintZZ, ngens(G)), identity_matrix(FlintZZ, ngens(G)), check = false)
 
 @doc Markdown.doc"""
-    hom(A::Array{GrpAbFinGenElem, 1}, B::Array{GrpAbFinGenElem, 1}) -> Map
+    hom(A::Vector{GrpAbFinGenElem}, B::Vector{GrpAbFinGenElem}) -> Map
 
 Creates the homomorphism $A[i] \mapsto B[i]$.
 """
-function hom(A::Array{GrpAbFinGenElem, 1}, B::Array{GrpAbFinGenElem, 1}; check::Bool = true)
+function hom(A::Vector{GrpAbFinGenElem}, B::Vector{GrpAbFinGenElem}; check::Bool = true)
   GA = parent(A[1])
   GB = parent(B[1])
   @assert length(B) == length(A)
@@ -107,8 +134,8 @@ function hom(A::Array{GrpAbFinGenElem, 1}, B::Array{GrpAbFinGenElem, 1}; check::
   if (check)
     m = vcat(fmpz_mat[x.coeff for x in A])
     m = vcat(m, rels(parent(A[1])))
-    i, T = nullspace(m')
-    T = T'
+    i, T = nullspace(transpose(m))
+    T = transpose(T)
     T = sub(T, 1:nrows(T), 1:length(A))
     n = vcat(fmpz_mat[x.coeff for x in B])
     n = T*n
@@ -120,7 +147,7 @@ function hom(A::Array{GrpAbFinGenElem, 1}, B::Array{GrpAbFinGenElem, 1}; check::
   if ngens(GB) == 0
     return hom(GA, GB, matrix(FlintZZ, ngens(GA), 0, fmpz[]), check = check)
   end
-       
+
   M = vcat([hcat(A[i].coeff, B[i].coeff) for i = 1:length(A)])
   RA = rels(GA)
   M = vcat(M, hcat(RA, zero_matrix(FlintZZ, nrows(RA), ncols(B[1].coeff))))
@@ -135,11 +162,11 @@ function hom(A::Array{GrpAbFinGenElem, 1}, B::Array{GrpAbFinGenElem, 1}; check::
 end
 
 @doc Markdown.doc"""
-    hom(G::GrpAbFinGen, B::Array{GrpAbFinGenElem, 1}) -> Map
+    hom(G::GrpAbFinGen, B::Vector{GrpAbFinGenElem}) -> Map
 
 Creates the homomorphism which maps $G[i]$ to $B[i]$.
 """
-function hom(G::GrpAbFinGen, B::Array{GrpAbFinGenElem, 1}; check::Bool = true)
+function hom(G::GrpAbFinGen, B::Vector{GrpAbFinGenElem}; check::Bool = true)
   GB = parent(B[1])
   @assert length(B) == ngens(G)
   M = vcat([B[i].coeff for i = 1:length(B)])
@@ -147,7 +174,7 @@ function hom(G::GrpAbFinGen, B::Array{GrpAbFinGenElem, 1}; check::Bool = true)
   return h
 end
 
-function hom(G::GrpAbFinGen, H::GrpAbFinGen, B::Array{GrpAbFinGenElem, 1}; check::Bool = true)
+function hom(G::GrpAbFinGen, H::GrpAbFinGen, B::Vector{GrpAbFinGenElem}; check::Bool = true)
   @assert length(B) == ngens(G)
   @assert all(i -> parent(i) == H, B)
   M = zero_matrix(FlintZZ, ngens(G), ngens(H))
@@ -217,7 +244,7 @@ function inv(f::GrpAbFinGenMap)
     end
     imgs[i] = el
   end
-  return hom(gB, imgs, check = false)
+  return hom(codomain(f),domain(f), imgs, check = false)
 end
 
 ################################################################################
@@ -321,6 +348,20 @@ function issurjective(A::GrpAbFinGenMap)
   end
 end
 
+################################################################################
+#
+#  Is zero, Is identity
+#
+################################################################################
+
+function iszero(h::T) where T <: Map{<:GrpAbFinGen, <:GrpAbFinGen}
+  return all(x -> iszero(h(x)), gens(domain(h)))
+end
+
+function isidentity(h::T) where T <: Map{<:GrpAbFinGen, <:GrpAbFinGen}
+  @assert domain(h) === codomain(h)
+  return all(x -> iszero(h(x)-x), gens(domain(h)))
+end
 ################################################################################
 #
 #  Injectivity
@@ -432,7 +473,7 @@ function hom(G::GrpAbFinGen, H::GrpAbFinGen; task::Symbol = :map)
   m = ngens(sH)
   r = [cyclic_hom(x, y) for x = sG.snf for y = sH.snf]
   R = GrpAbFinGen([x[1] for x = r])
-  set_special(R, :hom=>(G, H), :show => show_hom)
+  set_attribute!(R, :hom=>(G, H), :show => show_hom)
   if task == :none
     return R
   end
@@ -448,7 +489,7 @@ function hom(G::GrpAbFinGen, H::GrpAbFinGen; task::Symbol = :map)
     if ngens(sG) == 0
       return R[0]
     end
-    local m = vcat([preimage(mH, r(mG(sG[i]))).coeff for i = 1:ngens(sG)])'
+    local m = transpose(vcat([preimage(mH, r(mG(sG[i]))).coeff for i = 1:ngens(sG)]))
     return R([divexact(m[i], c[i]) for i = 1:ngens(R)])
   end
   return R, MapFromFunc(phi, ihp, R, MapParent(G, H, "homomorphisms"))

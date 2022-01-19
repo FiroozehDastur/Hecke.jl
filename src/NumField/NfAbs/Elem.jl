@@ -14,7 +14,7 @@ Base.copy(d::nf_elem) = deepcopy(d)
 #
 ################################################################################
 
-function basis_matrix(A::Array{nf_elem, 1}, ::Type{FakeFmpqMat})
+function basis_matrix(A::Vector{nf_elem}, ::Type{FakeFmpqMat})
   @assert length(A) > 0
   n = length(A)
   d = degree(parent(A[1]))
@@ -38,7 +38,7 @@ function basis_matrix(A::Array{nf_elem, 1}, ::Type{FakeFmpqMat})
   return FakeFmpqMat(M, deno)
 end
 
-function basis_matrix(A::Array{nf_elem, 1})
+function basis_matrix(A::Vector{nf_elem})
   @assert length(A) > 0
   n = length(A)
   d = degree(parent(A[1]))
@@ -422,7 +422,7 @@ function nice(f::PolyElem{nf_elem})
   if ismonic(f)
     return "$(gen(parent(f))^degree(f)) + ... "
   else
-    return "$(lead(f))$(gen(parent(f))^degree(f)) + ... "
+    return "$(leading_coefficient(f))$(gen(parent(f))^degree(f)) + ... "
   end
 end
 
@@ -440,7 +440,7 @@ function factor(f::PolyElem{nf_elem})
   if degree(f) == 0
     r = Fac{typeof(f)}()
     r.fac = Dict{typeof(f), Int}()
-    r.unit = Kx(lead(f))
+    r.unit = Kx(leading_coefficient(f))
     return r
   end
   sqf = factor_squarefree(f)
@@ -464,7 +464,7 @@ function factor(f::PolyElem{nf_elem})
   r = Fac{typeof(f)}()
   r.fac = fac
   #The unit is just the leading coefficient of f
-  r.unit = Kx(lead(f))
+  r.unit = Kx(leading_coefficient(f))
   return r
 end
 
@@ -472,7 +472,7 @@ end
 function _factor(f::PolyElem{nf_elem})
 
   K = base_ring(f)
-  f = f*(1//lead(f))
+  f = f*(1//leading_coefficient(f))
 
   if degree(f) < degree(K)
     lf = factor_trager(f)::Vector{typeof(f)}
@@ -494,20 +494,21 @@ function factor_trager(f::PolyElem{nf_elem})
 
   Zx = Hecke.Globals.Zx
   @vtime :PolyFactor Np = norm_mod(g, p, Zx)
-  while isconstant(Np) || !issquarefree(map_coeffs(F, Np))
+  while isconstant(Np) || !issquarefree(map_coefficients(F, Np))
     k = k + 1
     g = compose(f, gen(Kx) - k*gen(K))
     @vtime :PolyFactor 2 Np = norm_mod(g, p, Zx)
   end
 
-  @vprint :PolyFactor 2 "need to shift by $k, now the norm"
-  if any(x -> denominator(x) > 1, coefficients(g))
+  @vprint :PolyFactor 2 "need to shift by $k, now the norm\n"
+  if any(x -> denominator(x) > 1, coefficients(g)) ||
+     !isdefining_polynomial_nice(K)
     @vtime :PolyFactor 2 N = Hecke.Globals.Qx(norm(g))
   else
     @vtime :PolyFactor 2 N = norm_mod(g, Zx)
     @hassert :PolyFactor 1 N == Zx(norm(g))
   end
-  
+
   while isconstant(N) || !issquarefree(N)
     error("should not happen")
     k = k + 1
@@ -639,7 +640,7 @@ end
 ################################################################################
 
 @doc Markdown.doc"""
-    roots(f::fmpz_poly, K::AnticNumberField) -> Array{nf_elem, 1}
+    roots(f::fmpz_poly, K::AnticNumberField) -> Vector{nf_elem}
 
 Computes all roots in $K$ of a polynomial $f$. It is assumed that $f$ is non-zero,
 squarefree and monic.
@@ -650,7 +651,7 @@ function roots(f::fmpz_poly, K::AnticNumberField; kw...)
 end
 
 @doc Markdown.doc"""
-    roots(f::fmpq_poly, K::AnticNumberField) -> Array{nf_elem, 1}
+    roots(f::fmpq_poly, K::AnticNumberField) -> Vector{nf_elem}
 
 Computes all roots in $K$ of a polynomial $f$. It is assumed that $f$ is non-zero,
 squarefree and monic.
@@ -667,7 +668,7 @@ end
 @doc Markdown.doc"""
     roots(f::Generic.Poly{nf_elem}; max_roots = degree(f),
                                     ispure = false,
-                                    isnormal = false)       -> Array{nf_elem, 1}
+                                    isnormal = false)       -> Vector{nf_elem}
 
 Computes the roots of a polynomial $f$. It is assumed that $f$ is non-zero,
 squarefree and monic.
@@ -748,6 +749,7 @@ If the field $K$ is known to contain the $n$-th roots of unity,
 one can set `with_roots_unity` to `true`.
 """
 function ispower(a::nf_elem, n::Int; with_roots_unity::Bool = false, isintegral::Bool = false, trager = false)
+#  @req isdefining_polynomial_nice(parent(a)) "Defining polynomial must be integral and monic"
   @assert n > 0
   if n == 1
     return true, a
@@ -833,27 +835,12 @@ function _height(a::nf_elem)
   return h
 end
 
-@doc Markdown.doc"""
-    issquare(a::nf_elem) -> Bool, nf_elem
-
-Tests if $a$ is a square and return the root if possible.
-"""
 issquare(a::nf_elem) = ispower(a, 2)
 
-issquare_with_square_root(a::NumFieldElem) = issquare(a)
+issquare_with_sqrt(a::NumFieldElem) = issquare(a)
 
-@doc Markdown.doc"""
-    sqrt(a::nf_elem) -> nf_elem
-
-The square-root of $a$ or an error if this is not possible.
- """
 sqrt(a::nf_elem) = root(a, 2)
 
-@doc Markdown.doc"""
-    root(a::nf_elem, n::Int) -> nf_elem
-
-Computes the $n$-th root of $a$. Throws an error if this is not possible.
-"""
 function root(a::nf_elem, n::Int)
   fl, rt = ispower(a, n)
   if fl
@@ -863,11 +850,6 @@ function root(a::nf_elem, n::Int)
   error("$a has no $n-th root")
 end
 
-@doc Markdown.doc"""
-    roots(a::nf_elem, n::Int) -> Array{nf_elem, 1}
-
-Compute all $n$-th roots of $a$, possibly none.
-"""
 function roots(a::nf_elem, n::Int)
   @assert n > 0
   if n == 1 || iszero(a)
@@ -1079,6 +1061,15 @@ end
 function conjugate_quad(a::nf_elem)
   k = parent(a)
   @assert degree(k) == 2
+  #fallback: tr(a) = a + bar(a), so tr(a) - a = bar(a)...
+  #in the easy case: tr(gen(k)) = -r
+  #if there are dens then it gets messy and I am not sure it is worth while:
+  # x + y gen(k) -> x + y bar(k) and bar(k) = tr(k) - gen(k), but
+  # tr(k) = -b/a (for the polyomial ax^2 + bx + c), hence:
+  # (x+y gen(k)) / d -> (ax - by - ay gen(k))/(ad)
+  # and there we might have to do simplification.
+  #TODO: on 2nd thought: we might have to simplify in the easy case as well?
+  (isone(k.pol_den) && ismonic(k.pol))|| return tr(a) - a
   # we have
   # a = x + y gen(k), so bar(a) = x + y bar(k)
   # assume pol(k) is monic: x^2 + rx + t, then
@@ -1087,7 +1078,6 @@ function conjugate_quad(a::nf_elem)
   # so bar(a) = x + y (-bar(k) - r) = (x-ry) - y gen(k)
   b = k()
   q = fmpz()
-  @assert isone(k.pol_den)
   GC.@preserve b begin
     a_ptr = reinterpret(Ptr{Int}, pointer_from_objref(a))
     p_ptr = reinterpret(Ptr{Int}, k.pol_coeffs)

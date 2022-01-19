@@ -141,13 +141,13 @@ determinant is a local norm or not.
 det(G::LocalGenusHerm, i::Int) = G.data[i][3]
 
 @doc Markdown.doc"""
-    disc(G::LocalGenusHerm, i::Int) -> Int
+    discriminant(G::LocalGenusHerm, i::Int) -> Int
 
 Given a genus symbol for Hermitian lattices over $E/K$, return the discriminant
 of the $i$th Jordan block of $G$. This will be `1` or `-1` depending on whether
 the discriminant is a local norm or not.
 """
-function disc(G::LocalGenusHerm, i::Int)
+function discriminant(G::LocalGenusHerm, i::Int)
   d = det(G)
   r = rank(G, i) % 4
   if r == 0 || r == 1
@@ -163,12 +163,12 @@ function disc(G::LocalGenusHerm, i::Int)
 end
 
 @doc Markdown.doc"""
-    disc(G::LocalGenusHerm) -> Int
+    discriminant(G::LocalGenusHerm) -> Int
 
 Given a genus symbol $G$, return the discriminant of a lattice in $G$. This will be
 `1` or `-1` depending on whether the discriminant is a local norm or not.
 """
-function disc(G::LocalGenusHerm)
+function discriminant(G::LocalGenusHerm)
   d = det(G)
   r = rank(G) % 4
   if r == 0 || r == 1
@@ -612,16 +612,21 @@ Returns the genus of $L$ at the prime ideal $\mathfrak p$.
 See [Kir16, Definition 8.3.1].
 """
 function genus(L::HermLat, q)
-  c = get_special(L, :local_genera)
+  c = get_attribute(L, :local_genera)
   S = ideal_type(base_ring(base_ring(L)))
   if c === nothing
     symbols = Dict{S, LocalGenusHerm{typeof(base_field(L)), S}}()
-    set_special(L, :local_genera => symbols)
+    set_attribute!(L, :local_genera => symbols)
   else
     symbols = c::Dict{S, LocalGenusHerm{typeof(base_field(L)), S}}
     if order(q) !== base_ring(base_ring(L))
       if haskey(symbols, minimum(q))
         return symbols[minimum(q)]
+      end
+    elseif q isa fmpz
+      qq = ideal(base_ring(base_ring(L)), q)
+      if haskey(symbols, qq)
+        return symbols[qq]
       end
     else
       if haskey(symbols, q)
@@ -633,6 +638,11 @@ function genus(L::HermLat, q)
   if order(q) !== base_ring(base_ring(L))
     g = _genus(L, minimum(q))
     symbols[minimum(q)] = g
+  elseif q isa fmpz
+    qq = ideal(base_ring(base_ring(L)), q)
+    g = _genus(L, qq)
+    symbols[qq] = g
+    return g
   else
     g = _genus(L, q)
     symbols[q] = g
@@ -1014,11 +1024,11 @@ end
 Given a Hermitian lattice, return the genus it belongs to.
 """
 function genus(L::HermLat)
-  c = get_special(L, :genus)
+  c = get_attribute(L, :genus)
   S = ideal_type(base_ring(base_ring(L)))
   if c === nothing
     G = _genus(L)
-    set_special(L, :genus => G)
+    set_attribute!(L, :genus => G)
     return G
   else
     return c::genus_herm_type(base_field(L))
@@ -1423,7 +1433,7 @@ end
 # Return b, p, bad
 # b = isdefinite(L)
 # p = prime ideal of base_ring(L) which can be used for the neighbor method
-# bad = bad primes of L, where L,p is not modular or p is dyadic and dividing disc(S)
+# bad = bad primes of L, where L,p is not modular or p is dyadic and dividing discriminant(S)
 function smallest_neighbour_prime(L)
   S = base_ring(L)
   R = base_ring(S)
@@ -1490,7 +1500,7 @@ function genus_generators(L::HermLat)
   E = nf(R)
   D = different(R)
   b, P0, bad = smallest_neighbour_prime(L)
-  
+
   local bad_prod::ideal_type(base_ring(R))
 
   if isempty(bad)

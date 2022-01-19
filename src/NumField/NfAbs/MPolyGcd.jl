@@ -12,7 +12,7 @@ import Nemo
 function basis_matrix(d::fmpz, f::fmpz_poly, k::AnticNumberField)
   #assumes f is idl as above!!!
   #1st need to deconstruct f into the different degrees:
-  #CRT of degree a>b and implies lead(b) = 0 mod q, hence gcd's are my friend
+  #CRT of degree a>b and implies leading_coefficient(b) = 0 mod q, hence gcd's are my friend
   #claim: in this situation, the "obvious" method will produce a Howell form
   #tries to compute the basis matrix for the ideal <d, f(a)> where a = gen(k)
   #assumes deg f < deg k, d coprime to the conductor/ index/ everything
@@ -31,7 +31,7 @@ function basis_matrix(d::fmpz, f::fmpz_poly, k::AnticNumberField)
     #so I have <d/r, f> of degree i and
     #          <f, f mod r> of smaller degree
     n = div(g, r)
-    c = invmod(lead(f), n)
+    c = invmod(leading_coefficient(f), n)
     fn = mod(c*f, n)
     @assert ismonic(fn)
     @assert degree(fn) == i
@@ -48,7 +48,7 @@ function basis_matrix(d::fmpz, f::fmpz_poly, k::AnticNumberField)
       t = gen(parent(fn))^i-fn
       for j=i+2:degree(k)
         t = t*gen(parent(fn))
-        t -= lead(t)*fn
+        t -= leading_coefficient(t)*fn
         mod!(t, n)
         M[j,j] = 1
         for k=1:j-1
@@ -116,7 +116,7 @@ end
 
 function data_assure(R::RecoCtx)
   R.new_data || return
-  
+
   R.L = lll(basis_matrix(R.p1, R.f, R.k))
   if isdefined(R, :LI) #to keep stucture consistent
     R.LI, R.d = pseudo_inv(R.L)
@@ -201,7 +201,7 @@ function Hecke.rational_reconstruction(a::nf_elem, R::RecoCtx; integral::Bool = 
   K = parent(a)
   d = Nemo.elem_from_mat_row(K, sub(L, 1:1, 1:n), 1, fmpz(1))
   n = Nemo.elem_from_mat_row(K, sub(L, 1:1, n+1:2*n), 1, fmpz(1))
-  if split 
+  if split
     return true, n, d
   else
     return true, n//d
@@ -270,7 +270,7 @@ function _gcd(f::Hecke.Generic.MPoly{nf_elem}, g::Hecke.Generic.MPoly{nf_elem}, 
   f*=de
   g*=de
   E = equation_order(K)
-  lI = E*E(lead(f)) + E*E(lead(g))
+  lI = E*E(leading_coefficient(f)) + E*E(leading_coefficient(g))
   gl = Hecke.short_elem(lI)
   gl *= evaluate(derivative(K.pol), gen(K))  # use Kronnecker basis
 
@@ -282,7 +282,7 @@ function _gcd(f::Hecke.Generic.MPoly{nf_elem}, g::Hecke.Generic.MPoly{nf_elem}, 
     if isempty(me)
       continue
     end
-    
+
     @vtime :MPolyGcd 3 fp = Hecke.modular_proj(f, me)
     @vtime :MPolyGcd 3 gp = Hecke.modular_proj(g, me)
     glp = Hecke.modular_proj(gl, me)
@@ -308,7 +308,7 @@ function _gcd(f::Hecke.Generic.MPoly{nf_elem}, g::Hecke.Generic.MPoly{nf_elem}, 
 #          @time q = div(f, gd)
 #          @time q*gd == f
           gd*=inv(gl)
-          @assert isone(lead(gd))
+          @assert isone(leading_coefficient(gd))
           return inflate(gd, shiftr, deflr)
       end
       stable = max_stable
@@ -328,11 +328,11 @@ function _gcd(f::Hecke.Generic.MPoly{nf_elem}, g::Hecke.Generic.MPoly{nf_elem}, 
         d *= p
         stable -= 1
       end
-        if fl && stable <= 0 
+        if fl && stable <= 0
           if divides(f, gd)[1] && divides(g, gd)[1]
 #            @show "gcd stop", nbits(d), length(gd), gd
             gd*=inv(gl)
-            @assert isone(lead(gd))
+            @assert isone(leading_coefficient(gd))
             return inflate(gd, shiftr, deflr)
           else
             stable = max_stable
@@ -411,7 +411,7 @@ function Hecke.induce_crt(a::Hecke.Generic.MPoly{nf_elem}, p::fmpz, b::Hecke.Gen
     end
   end
   return finish(c), pq
-end   
+end
 
 function Hecke.induce_crt(a::fmpz_mat, p::fmpz, b::fmpz_mat, q::fmpz, signed::Bool = false)
   pi = invmod(p, q)
@@ -431,7 +431,7 @@ function Hecke.induce_crt(a::fmpz_mat, p::fmpz, b::fmpz_mat, q::fmpz, signed::Bo
     end
   end
   return c, pq
-end   
+end
 
 function Hecke.modular_proj(f::Generic.MPoly{nf_elem}, me::Hecke.modular_env)
   if !isdefined(me, :Kxy)
@@ -467,7 +467,7 @@ function Hecke.modular_proj(::Type{fq_nmod}, a::Generic.MPoly{nf_elem}, me::Heck
   vars = map(string, symbols(Kxy))
   s = length(me.fld)
   res = [MPolyBuildCtx(PolynomialRing(me.fld[i], vars)[1]) for i in 1:s]
-  for (c, v) in zip(coeffs(a), exponent_vectors(a))
+  for (c, v) in zip(coefficients(a), exponent_vectors(a))
     cp = Hecke.modular_proj(c, me)
     for i in 1:s
       push_term!(res[i], deepcopy(cp[i]), v)
@@ -478,10 +478,10 @@ end
 
 
 
-function Hecke.modular_lift(g::Array{nmod_mpoly, 1}, me::Hecke.modular_env)
+function Hecke.modular_lift(g::Vector{nmod_mpoly}, me::Hecke.modular_env)
 
   #TODO: no dict, but do s.th. similar to induce_crt
-  d = Dict{Array{Int, 1}, Array{Tuple{Int, Hecke.nmod}, 1}}()
+  d = Dict{Vector{Int}, Vector{Tuple{Int, Hecke.nmod}}}()
   for i=1:length(g)
     for (c, e) = Base.Iterators.zip(Generic.MPolyCoeffs(g[i]), Generic.MPolyExponentVectors(g[i]))
       if Base.haskey(d, e)
@@ -517,7 +517,7 @@ function Hecke.modular_lift(g::Array{nmod_mpoly, 1}, me::Hecke.modular_env)
 end
 
 function Hecke.modular_lift(g::Vector{T}, me::Hecke.modular_env) where T <: MPolyElem{fq_nmod}
-  d = Dict{Array{Int, 1}, Array{Tuple{Int, fq_nmod}, 1}}()
+  d = Dict{Vector{Int}, Vector{Tuple{Int, fq_nmod}}}()
   for i in 1:length(g)
     for (c, e) = Base.Iterators.zip(Generic.MPolyCoeffs(g[i]),
                                     Generic.MPolyExponentVectors(g[i]))

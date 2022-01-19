@@ -1,4 +1,4 @@
-export isinvertible, contract
+export isinvertible, contract, swan_module
 
 @doc Markdown.doc"""
     order(a::AlgAssAbsOrdIdl) -> AlgAssAbsOrd
@@ -56,7 +56,13 @@ Returns the ideal in $A$ with basis matrix $M$.
 If `M_in_hnf == true`, it is assumed that $M$ is already in lower left HNF.
 """
 function ideal(A::AbsAlgAss{fmpq}, M::FakeFmpqMat, M_in_hnf::Bool = false)
-  !M_in_hnf ? M = hnf(M, :lowerleft) : nothing
+  if !M_in_hnf
+    if false #issquare(M) && (dim(A) > 50 || sum(nbits, numerator(M)) > 1000)
+      M = hnf(M, :lowerleft, compute_det = true)
+    else
+      M = hnf(M, :lowerleft)
+    end
+  end
   return AlgAssAbsOrdIdl{typeof(A), elem_type(A)}(A, M)
 end
 
@@ -164,8 +170,8 @@ ideal(O::AlgAssAbsOrd{S, T}, x::AlgAssAbsOrdElem{S, T}, side::Symbol) where { S,
 
 Returns the ideal $O \cdot x$ or $x \cdot O$ respectively.
 """
-*(O::AlgAssAbsOrd{S, T}, x::T) where {S, T <: AlgAssElem} = ideal(O, x, :left)
-*(x::T, O::AlgAssAbsOrd{S, T}) where {S, T <: AlgAssElem} = ideal(O, x, :right)
+*(O::AlgAssAbsOrd{S, T}, x::T) where {S, T <: Union{AlgAssElem, AlgMatElem, AlgGrpElem}} = ideal(O, x, :left)
+*(x::T, O::AlgAssAbsOrd{S, T}) where {S, T <: Union{AlgAssElem, AlgMatElem, AlgGrpElem}} = ideal(O, x, :right)
 *(O::AlgAssAbsOrd{S, T}, x::AlgAssAbsOrdElem{S, T}) where {S, T} = ideal(O, x, :left)
 *(x::AlgAssAbsOrdElem{S, T}, O::AlgAssAbsOrd{S, T}) where {S, T} = ideal(O, x, :right)
 *(O::AlgAssAbsOrd, x::Union{ Int, fmpz }) = ideal(O, O(x), :left)
@@ -440,6 +446,37 @@ function +(a::AlgAssAbsOrdIdl{S, T}, b::AlgAssAbsOrdIdl{S, T}) where {S, T}
   return c
 end
 
+function sum(a::Vector{AlgAssAbsOrdIdl{S, T}}) where {S, T}
+  @req length(a) > 0 "Cannot sum zero ideals"
+  if length(a) == 1
+    return a[1]
+  end
+
+  mats = FakeFmpqMat[basis_matrix(I) for I in a]
+
+  bigmat = reduce(vcat, mats)
+  k = length(a)
+  j = 1
+  d = ncols(bigmat)
+
+  g = fmpz(0)
+  for i in 1:k
+    v = view(numerator(bigmat), j:(j + d - 1), 1:d)
+    @assert islower_triangular(v)
+    gg = reduce(*, diagonal(v), init = fmpz(1))
+    g = gcd(gg, g)
+    j += d
+  end
+  if !iszero(g)
+    M = sub(hnf_modular_eldiv(bigmat, g, :lowerleft), (nrows(bigmat) - d + 1):nrows(bigmat), 1:d)
+  else
+    M = sub(hnf(bigmat, :lowerleft), (nrows(bigmat) - d + 1):nrows(bigmat), 1:d)
+  end
+
+  c = ideal(algebra(a[1]), M, true)
+  return c
+end
+
 @doc Markdown.doc"""
     *(a::AlgAssAbsOrdIdl, b::AlgAssAbsOrdIdl) -> AlgAssAbsOrdIdl
 
@@ -555,7 +592,7 @@ end
 
 *(x::Union{ Int, fmpz, fmpq }, a::AlgAssAbsOrdIdl) = a*x
 
-function *(a::AlgAssAbsOrdIdl{S, T}, x::T) where { S, T <: Union{AlgAssElem, AlgGrpElem} }
+function *(a::AlgAssAbsOrdIdl{S, T}, x::T) where { S, T <: Union{AlgAssElem, AlgGrpElem, AlgMatElem} }
   if iszero(x)
     return _zero_ideal(algebra(a))
   end
@@ -567,7 +604,7 @@ function *(a::AlgAssAbsOrdIdl{S, T}, x::T) where { S, T <: Union{AlgAssElem, Alg
   return b
 end
 
-function *(x::T, a::AlgAssAbsOrdIdl{S, T}) where { S, T <: Union{AlgAssElem, AlgGrpElem}}
+function *(x::T, a::AlgAssAbsOrdIdl{S, T}) where { S, T <: Union{AlgAssElem, AlgGrpElem, AlgMatElem}}
   if iszero(x)
     return _zero_ideal(algebra(a))
   end
@@ -614,7 +651,7 @@ Returns `true` if $x$ is in $a$ and `false` otherwise.
 function in(x::T, a::AlgAssAbsOrdIdl{S, T}) where { S, T }
   parent(x) !== algebra(a) && error("Algebra of element and ideal must be equal")
   A = algebra(a)
-  t = FakeFmpqMat(matrix(FlintQQ, 1, dim(A), coeffs(x, copy = false)))
+  t = FakeFmpqMat(matrix(FlintQQ, 1, dim(A), coefficients(x, copy = false)))
   t = t*basis_mat_inv(a, copy = false)
   return denominator(t, copy = false) == 1
 end
@@ -1048,7 +1085,7 @@ function pradical_meataxe(O::AlgAssAbsOrd, p::Int)
   A1, OtoA1 = quo(O, p*O, p)
   @vtime :AlgAssOrd 1 lg = gens(A1)
   lM = dense_matrix_type(base_ring(A1))[ transpose(representation_matrix(lg[i])) for i = 1:length(lg) ]
-  M = ModAlgAss(lM)
+  M = Module(lM)
   ls = minimal_submodules(M)
   l = sum(nrows(x) for x in ls)
   M1 = zero_matrix(base_ring(A1), l, degree(O))
@@ -1097,10 +1134,9 @@ function pradical(O::AlgAssAbsOrd, p::Int)
   if l > 1
     return pradical_meataxe(O, p)
   end
-  n = root(degree(O), 2)
   F = GF(p, cached = false)
 
-  I = change_base_ring(F, n*trred_matrix(O))
+  I = change_base_ring(F, trred_matrix(O))
   k, B = nullspace(I)
   # The columns of B give the coordinates of the elements in the order.
   if k == 0
@@ -1119,7 +1155,7 @@ function pradical(O::AlgAssAbsOrd, p::Int)
   M = hnf_modular_eldiv!(M, fmpz(p)) # This puts p in the "missing" pivot entries
   M = M*basis_matrix(O, copy = false)
   res = ideal(algebra(O), O, M, :twosided)
-  B1 = lift(B')
+  B1 = lift(transpose(B))
   res.gens = Vector{elem_type(algebra(O))}(undef, k + 1)
   for i = 1:k
     res.gens[i] = elem_in_algebra(elem_from_mat_row(O, B1, i), copy = false)
@@ -1141,7 +1177,7 @@ function _maximal_ideals(O::AlgAssAbsOrd, I::AlgAssAbsOrdIdl, p::Union{Int, fmpz
   @vtime :AlgAssOrd 1 lg = gens(A1)
   lM = dense_matrix_type(base_ring(A1))[ representation_matrix(lg[i]) for i = 1:length(lg) ]
   append!(lM, dense_matrix_type(base_ring(A1))[ representation_matrix(lg[i], :right) for i = 1:length(lg) ])
-  M = ModAlgAss(lM)
+  M = Module(lM)
   ls = maximal_submodules(M)
   if strict_containment && isone(length(ls)) && iszero(nrows(ls[1]))
     ls = typeof(ls[1])[]
@@ -1150,7 +1186,7 @@ function _maximal_ideals(O::AlgAssAbsOrd, I::AlgAssAbsOrdIdl, p::Union{Int, fmpz
 end
 
 function _from_submodules_to_ideals(M::ModAlgAss, O::AlgAssAbsOrd, I::AlgAssAbsOrdIdl, x::Union{Zmodn_mat, Generic.Mat{Generic.ResF{fmpz}}}, A1::AlgAss, OtoA1::AbsOrdToAlgAssMor)
-  @hassert :AlgAssOrd 1 begin r = rref(x)[1]; closure(x, M.action) == sub(rref(x)[2], 1:r, 1:ncols(x)) end
+  @hassert :AlgAssOrd 1 begin r = rref(x)[1]; closure(x, M.action_of_gens) == sub(rref(x)[2], 1:r, 1:ncols(x)) end
   m = zero_matrix(FlintZZ, nrows(x), degree(O))
   g = Vector{elem_type(algebra(O))}(undef, nrows(x))
   for i = 1:nrows(x)
@@ -1828,7 +1864,7 @@ function maximal_integral_ideal(O::AlgAssAbsOrd, p::Union{ fmpz, Int }, side::Sy
 
   # P is the Jacobson radical of O/pO, so O/P is a simple algebra
   B, OtoB = quo(O, P, p)
-  C, BtoC, CtoB = _as_algebra_over_center(B)
+  C, CtoB = _as_algebra_over_center(B)
   D, CtoD = _as_matrix_algebra(C)
 
   n = degree(D)
@@ -1902,7 +1938,7 @@ function maximal_integral_ideal_containing(I::AlgAssAbsOrdIdl, p::Union{ fmpz, I
   end
 
   OP, toOP = quo(O, P, p)
-  B, OPtoB, BtoOP = _as_algebra_over_center(OP)
+  B, BtoOP = _as_algebra_over_center(OP)
   C, toC = _as_matrix_algebra(B)
 
   JinC = ideal_from_gens(C, [ toC(OPtoB(toOP(O(b)))) for b in absolute_basis(J) ])
@@ -1950,4 +1986,18 @@ function maximal_integral_ideal_containing(I::AlgAssAbsOrdIdl, p::Union{ fmpz, I
   end
 
   return M
+end
+
+################################################################################
+#
+#  Swan module
+#
+################################################################################
+
+function swan_module(R::AlgAssAbsOrd{<: AlgGrp}, r::IntegerUnion)
+  A = algebra(R)
+  n = order(group(A))
+  @req iscoprime(n, r) "Argument must be coprime to group order"
+  N = sum(basis(A))
+  return N * R + r * R
 end
