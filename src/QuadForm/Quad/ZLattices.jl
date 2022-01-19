@@ -951,7 +951,7 @@ function Base.in(v::Vector, L::ZLat)
   @assert size(v)[1]==rank(L) "The vector should have the same length as the rank of the lattice."
   B = basis_matrix(L)
   V = matrix(QQ, size(v)[1], 1, v)
-  if !can_solve(B, V)
+  if !isone(denominator(V)) || !can_solve(B, V)
     return false
   else
     return true
